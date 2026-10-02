@@ -16,6 +16,17 @@ const products: ProductDto[] = [
       { operation: 'SLIT', name: 'Slitting', seq: 4, uom: 'm' },
     ],
   },
+  {
+    code: 'ANOD-GRAPHITE',
+    name: 'Anode Graphite',
+    polarity: 'ANODE',
+    route: [
+      { operation: 'MIX', name: 'Mixing', seq: 1, uom: 'kg' },
+      { operation: 'COAT', name: 'Coating', seq: 2, uom: 'm' },
+      { operation: 'CAL', name: 'Calendering', seq: 3, uom: 'm' },
+      { operation: 'SLIT', name: 'Slitting', seq: 4, uom: 'm' },
+    ],
+  },
 ]
 
 function machine(code: string, operation: EquipmentDto['operation']): EquipmentDto {
@@ -106,7 +117,30 @@ describe('WorkOrderForm', () => {
     await user.selectOptions(screen.getByLabelText('Mixing'), 'MX01')
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
-    expect(await screen.findAllByText('Select equipment')).not.toHaveLength(0)
+    expect(await screen.findAllByText('Select equipment', { selector: 'p' })).toHaveLength(3)
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  it('clears the equipment selects when the product changes', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    render(<WorkOrderForm products={products} equipment={equipment} onSubmit={onSubmit} />)
+
+    await fillCommon(user, '2026-10-05T08:00', '2026-10-06T08:00')
+    await user.selectOptions(screen.getByLabelText('Mixing'), 'MX01')
+    await user.selectOptions(screen.getByLabelText('Coating'), 'CT01')
+    await user.selectOptions(screen.getByLabelText('Calendering'), 'CP01')
+    await user.selectOptions(screen.getByLabelText('Slitting'), 'SL01')
+
+    await user.selectOptions(screen.getByLabelText('Product'), 'ANOD-GRAPHITE')
+
+    for (const step of ['Mixing', 'Coating', 'Calendering', 'Slitting']) {
+      expect(screen.getByLabelText(step)).toHaveValue('')
+    }
+
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findAllByText('Select equipment', { selector: 'p' })).toHaveLength(4)
     expect(onSubmit).not.toHaveBeenCalled()
   })
 })

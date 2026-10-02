@@ -155,7 +155,8 @@ export function WorkOrderForm({ products, equipment, initial, submitting, onSubm
       </div>
 
       {route.length > 0 && (
-        <fieldset className="space-y-3 rounded-lg border p-3">
+        // Remount on product change so the selects drop their old DOM values along with the form state.
+        <fieldset key={productCode} className="space-y-3 rounded-lg border p-3">
           <legend className="px-1 text-sm font-medium">Equipment per step</legend>
           {route.map((step) => {
             const id = `wo-op-${step.operation}`
