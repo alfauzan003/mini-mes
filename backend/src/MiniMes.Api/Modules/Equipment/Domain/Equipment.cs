@@ -1,4 +1,5 @@
 using MiniMes.Api.Modules.WorkOrders.Domain;
+using MiniMes.Api.Shared.Results;
 
 namespace MiniMes.Api.Modules.Equipment.Domain;
 
@@ -25,4 +26,26 @@ public class Equipment
     public EquipmentStatus? StatusBeforeDown { get; private set; }
     public Guid? CurrentRunId { get; private set; }
     public uint Version { get; private set; }
+
+    public Result StartRun(Guid runId)
+    {
+        if (Status != EquipmentStatus.Idle || CurrentRunId is not null)
+        {
+            return new Error(ErrorCodes.EquipmentNotAvailable, $"Equipment {Code} is {Status} and cannot start a run.");
+        }
+
+        Status = EquipmentStatus.Running;
+        CurrentRunId = runId;
+        return Result.Success();
+    }
+
+    /// <summary>Clears the run; only a RUNNING machine returns to IDLE, so a DOWN machine stays down.</summary>
+    public void EndRun()
+    {
+        CurrentRunId = null;
+        if (Status == EquipmentStatus.Running)
+        {
+            Status = EquipmentStatus.Idle;
+        }
+    }
 }
