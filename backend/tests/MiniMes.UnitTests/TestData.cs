@@ -1,3 +1,4 @@
+using MiniMes.Api.Modules.Equipment.Domain;
 using MiniMes.Api.Modules.Lots.Domain;
 using MiniMes.Api.Modules.WorkOrders.Domain;
 
@@ -13,4 +14,6 @@ public static class TestData
     public static Material CathodeFoil() => new("AL-FOIL", "Aluminium foil", LotType.Foil, Polarity.Cathode, "m");
 
     public static Material CathodeRaw() => new("NCM811", "NCM811 powder", LotType.Raw, Polarity.Cathode, "kg");
+
+    public static Equipment Equipment(string code, OperationCode operation) => new(code, code, operation);
 }
