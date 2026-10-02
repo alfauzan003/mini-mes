@@ -1,11 +1,10 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMemo, type ComponentProps } from 'react'
+import { useMemo } from 'react'
 import { useForm, useWatch, type Resolver } from 'react-hook-form'
 import { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
 import type {
   CreateWorkOrderRequest,
   EquipmentDto,
@@ -13,6 +12,7 @@ import type {
   ProductDto,
   WorkOrderDto,
 } from '@/shared/api/types'
+import { NativeSelect } from '@/shared/ui/NativeSelect'
 
 const QTY_MESSAGE = 'Target quantity must be a whole number of at least 1'
 
@@ -47,18 +47,6 @@ function toLocalInput(iso: string): string {
   const date = new Date(iso)
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
-}
-
-function NativeSelect({ className, ...props }: ComponentProps<'select'>) {
-  return (
-    <select
-      className={cn(
-        'h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive disabled:cursor-not-allowed disabled:opacity-50',
-        className,
-      )}
-      {...props}
-    />
-  )
 }
 
 function FieldError({ message }: { message?: string }) {

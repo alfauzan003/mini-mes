@@ -1,5 +1,8 @@
 import { Navigate, Route, Routes } from 'react-router'
 import { LoginPage } from '@/features/auth/LoginPage'
+import { CarrierListPage } from '@/features/carriers/CarrierListPage'
+import { LotDetailPage } from '@/features/lots/LotDetailPage'
+import { LotListPage } from '@/features/lots/LotListPage'
 import { StationPage } from '@/features/operator/StationPage'
 import { StationPickerPage } from '@/features/operator/StationPickerPage'
 import { WorkOrderDetailPage } from '@/features/work-orders/WorkOrderDetailPage'
@@ -7,7 +10,6 @@ import { WorkOrderListPage } from '@/features/work-orders/WorkOrderListPage'
 import { useAuth } from '@/shared/auth/AuthContext'
 import { RequireAuth, RequireRole } from '@/shared/auth/RequireRole'
 import { AppLayout } from '@/shared/layout/AppLayout'
-import { PlaceholderPage } from '@/shared/ui/PlaceholderPage'
 
 function HomeRedirect() {
   const { user } = useAuth()
@@ -39,9 +41,9 @@ export function App() {
               </RequireRole>
             }
           />
-          <Route path="lots" element={<PlaceholderPage title="WIP / Lots" />} />
-          <Route path="lots/:lotId" element={<PlaceholderPage title="Lot" />} />
-          <Route path="carriers" element={<PlaceholderPage title="Carriers" />} />
+          <Route path="lots" element={<LotListPage />} />
+          <Route path="lots/:lotId" element={<LotDetailPage />} />
+          <Route path="carriers" element={<CarrierListPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Route>
