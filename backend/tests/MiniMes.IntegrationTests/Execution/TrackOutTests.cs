@@ -225,6 +225,131 @@ public class TrackOutTests(MesApiFactory api) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Calendering_track_out_leaves_a_roll_already_running_on_the_slitter_alone()
+    {
+        var (wo, _, cal, roll) = await CalenderedStartedAsync();
+        await _driver.ProduceOkAsync(cal.Id, new OutputLine("BB-0002", null, 1180m, 20m));
+        var slit = await _driver.TrackInOkAsync("SL01", wo, OperationCode.Slit, "BB-0002");
+
+        var ended = await _driver.TrackOutOkAsync(cal.Id);
+
+        Assert.NotNull(ended.EndedAt);
+        Assert.Null(Assert.Single(ended.Inputs).ConsumedQty);
+        var lot = await _driver.LotAsync(roll);
+        Assert.Equal(LotStatus.Run, lot.Status);
+        Assert.Equal(1180m, lot.Qty);
+        Assert.Equal("BB-0002", lot.CurrentCarrier);
+        Assert.Equal(CarrierStatus.Full, (await _driver.CarrierAsync("BB-0002")).Status);
+        Assert.Equal(EquipmentStatus.Idle, (await _driver.EquipmentAsync("CP01")).Status);
+        Assert.Equal(EquipmentStatus.Running, (await _driver.EquipmentAsync("SL01")).Status);
+
+        await _driver.ProduceOkAsync(slit.Id, Grid());
+        var slitEnded = await _driver.TrackOutOkAsync(slit.Id);
+        Assert.Equal(1180m, Assert.Single(slitEnded.Inputs).ConsumedQty);
+        Assert.Equal(LotStatus.Consumed, (await _driver.LotAsync(roll)).Status);
+        Assert.Equal(CarrierStatus.Empty, (await _driver.CarrierAsync("BB-0002")).Status);
+    }
+
+    [Fact]
+    public async Task Calendering_track_out_without_output_returns_the_roll_to_wait_unchanged()
+    {
+        var (_, _, cal, roll) = await CalenderedStartedAsync();
+
+        var ended = await _driver.TrackOutOkAsync(cal.Id);
+
+        Assert.NotNull(ended.EndedAt);
+        Assert.Equal(0m, Assert.Single(ended.Inputs).ConsumedQty);
+        var lot = await _driver.LotAsync(roll);
+        Assert.Equal(LotStatus.Wait, lot.Status);
+        Assert.Equal(1200m, lot.Qty);
+        Assert.Equal("BB-0001", lot.CurrentCarrier);
+        Assert.Equal(OperationCode.Cal, lot.NextOperation);
+        Assert.Equal(CarrierStatus.Full, (await _driver.CarrierAsync("BB-0001")).Status);
+        Assert.Equal(EquipmentStatus.Idle, (await _driver.EquipmentAsync("CP01")).Status);
+        var events = await (await _driver.OperatorAsync()).GetFromJsonAsync<JsonElement>($"/api/lots/{roll}/events", Ct);
+        var last = events.EnumerateArray().Last();
+        Assert.Equal("TRACK_OUT", last.GetProperty("type").GetString());
+        Assert.Equal("CAL", last.GetProperty("operation").GetString());
+        Assert.Equal(0m, last.GetProperty("qty").GetDecimal());
+    }
+
+    [Fact]
+    public async Task Listing_the_calendered_roll_in_consumptions_is_invalid_input_set()
+    {
+        var (_, _, cal, roll) = await CalenderedStartedAsync();
+
+        var response = await _driver.TrackOutAsync(cal.Id, new Consumption(roll, 1200m));
+
+        await ProductionDriver.AssertErrorAsync(response, 422, "INVALID_INPUT_SET");
+        var fetched = await _driver.RunAsync(cal.Id);
+        Assert.Null(fetched.EndedAt);
+        Assert.Null(Assert.Single(fetched.Inputs).ConsumedQty);
+        var lot = await _driver.LotAsync(roll);
+        Assert.Equal(LotStatus.Run, lot.Status);
+        Assert.Equal(1200m, lot.Qty);
+        Assert.Equal(EquipmentStatus.Running, (await _driver.EquipmentAsync("CP01")).Status);
+    }
+
+    [Fact]
+    public async Task Slitting_must_consume_the_whole_electrode()
+    {
+        var (wo, _, cal, roll) = await CalenderedStartedAsync();
+        await _driver.ProduceOkAsync(cal.Id, new OutputLine("BB-0002", null, 1180m, 20m));
+        await _driver.TrackOutOkAsync(cal.Id);
+        var slit = await _driver.TrackInOkAsync("SL01", wo, OperationCode.Slit, "BB-0002");
+        await _driver.ProduceOkAsync(slit.Id, Grid());
+
+        var partial = await _driver.TrackOutAsync(slit.Id, new Consumption(roll, 1000m));
+        var excess = await _driver.TrackOutAsync(slit.Id, new Consumption(roll, 1180.001m));
+
+        await ProductionDriver.AssertErrorAsync(partial, 422, "INVALID_QUANTITY");
+        await ProductionDriver.AssertErrorAsync(excess, 422, "INVALID_QUANTITY");
+        var fetched = await _driver.RunAsync(slit.Id);
+        Assert.Null(fetched.EndedAt);
+        Assert.Null(Assert.Single(fetched.Inputs).ConsumedQty);
+        var lot = await _driver.LotAsync(roll);
+        Assert.Equal(LotStatus.Run, lot.Status);
+        Assert.Equal(1180m, lot.Qty);
+        Assert.Equal(EquipmentStatus.Running, (await _driver.EquipmentAsync("SL01")).Status);
+
+        var full = await _driver.TrackOutOkAsync(slit.Id, new Consumption(roll, 1180m));
+
+        Assert.Equal(1180m, Assert.Single(full.Inputs).ConsumedQty);
+        Assert.Equal(LotStatus.Consumed, (await _driver.LotAsync(roll)).Status);
+    }
+
+    [Fact]
+    public async Task Null_consumption_element_or_omitted_quantity_is_a_400_bad_request()
+    {
+        var (_, run, lots) = await StartMixAsync();
+        var client = await _driver.OperatorAsync();
+
+        var nullElement = await client.PostAsJsonAsync(
+            $"/api/runs/{run.Id}/track-out", new { consumptions = new object?[] { null } }, Ct);
+        var noQuantity = await client.PostAsJsonAsync(
+            $"/api/runs/{run.Id}/track-out", new { consumptions = new[] { new { lotId = lots[0] } } }, Ct);
+
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, nullElement.StatusCode);
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, noQuantity.StatusCode);
+        await AssertNothingChangedAsync(run, lots);
+    }
+
+    /// <summary>A released order whose roll sits on BB-0001 and is running in a calendering run on CP01.</summary>
+    private async Task<(WorkOrderDto Wo, RunDto Coat, RunDto Cal, string Roll)> CalenderedStartedAsync()
+    {
+        var (wo, foil, slurry) = await CoatStartedAsync();
+        var coat = await _driver.TrackInOkAsync("CT01", wo, OperationCode.Coat, foil, slurry);
+        var roll = (await _driver.ProduceOkAsync(coat.Id, new OutputLine("BB-0001", null, 1200m, 20m)))
+            .Outputs.Single().LotId!;
+        await _driver.TrackOutOkAsync(coat.Id);
+        var cal = await _driver.TrackInOkAsync("CP01", wo, OperationCode.Cal, "BB-0001");
+        return (wo, coat, cal, roll);
+    }
+
+    private static OutputLine[] Grid() =>
+        [.. Enumerable.Range(1, 8).Select(lane => new OutputLine($"PC-{lane:0000}", lane, 145m, 2m))];
+
+    [Fact]
     public async Task Using_up_a_roll_unloads_its_carrier_and_records_which_one()
     {
         var flow = await _driver.RunFullFlowAsync(target: 8);

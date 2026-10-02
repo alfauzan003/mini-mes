@@ -4,6 +4,7 @@ using MiniMes.Api.Modules.WorkOrders.Domain;
 using MiniMes.Api.Modules.WorkOrders.Features.CreateWorkOrder;
 using MiniMes.Api.Modules.WorkOrders.Features.Queries;
 using MiniMes.Api.Shared.Data;
+using MiniMes.Api.Shared.Http;
 using MiniMes.Api.Shared.Results;
 
 namespace MiniMes.Api.Modules.WorkOrders.Features.UpdateWorkOrder;
@@ -53,6 +54,13 @@ public static class UpdateWorkOrderEndpoint
     public static void MapUpdateWorkOrder(this IEndpointRouteBuilder app) =>
         app.MapPut("/api/work-orders/{id:guid}", async (
             Guid id, UpdateWorkOrderRequest request, UpdateWorkOrderHandler handler, CancellationToken ct) =>
-            (await handler.HandleAsync(id, request, ct)).ToHttpResult())
+        {
+            if (MalformedBody.HasNullItem(request.Operations))
+            {
+                return MalformedBody.Problem("Every operation must be an object.");
+            }
+
+            return (await handler.HandleAsync(id, request, ct)).ToHttpResult();
+        })
             .RequireAuthorization(Policies.Plan);
 }

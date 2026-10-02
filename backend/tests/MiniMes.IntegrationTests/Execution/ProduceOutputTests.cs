@@ -168,6 +168,48 @@ public class ProduceOutputTests(MesApiFactory api) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Quantity_with_more_than_three_decimals_or_beyond_the_column_is_invalid_quantity()
+    {
+        var (wo, _) = await CalenderedRollAsync();
+        var run = await _driver.TrackInOkAsync("SL01", wo, OperationCode.Slit, "BB-0004");
+        var tinyGood = Grid();
+        tinyGood[0] = tinyGood[0] with { GoodQty = 0.0004m };
+        var preciseReject = Grid();
+        preciseReject[1] = preciseReject[1] with { RejectQty = 1.0005m };
+        var tooLarge = Grid();
+        tooLarge[2] = tooLarge[2] with { GoodQty = 1_000_000_000m };
+
+        var responses = new[]
+        {
+            await _driver.ProduceAsync(run.Id, tinyGood),
+            await _driver.ProduceAsync(run.Id, preciseReject),
+            await _driver.ProduceAsync(run.Id, tooLarge)
+        };
+
+        foreach (var response in responses)
+        {
+            await ProductionDriver.AssertErrorAsync(response, 422, "INVALID_QUANTITY");
+        }
+
+        Assert.Equal(0, await CountLotsAsync("type=PANCAKE"));
+        Assert.Equal(0, (await _driver.WorkOrderAsync(wo)).GoodCount);
+    }
+
+    [Fact]
+    public async Task Null_output_line_is_a_400_bad_request()
+    {
+        var wo = await _driver.CreateReleasedWorkOrderAsync();
+        var run = await _driver.TrackInOkAsync(
+            "MX01", wo, OperationCode.Mix, await _driver.MaterialLotsAsync(CathodeMix));
+
+        var response = await (await _driver.OperatorAsync())
+            .PostAsJsonAsync($"/api/runs/{run.Id}/outputs", new { outputs = new object?[] { null } }, Ct);
+
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(0, await CountLotsAsync("type=SLURRY"));
+    }
+
+    [Fact]
     public async Task Unknown_run_is_404_run_not_found()
     {
         var response = await _driver.ProduceAsync(Guid.NewGuid(), new OutputLine(null, null, 1m, 0m));

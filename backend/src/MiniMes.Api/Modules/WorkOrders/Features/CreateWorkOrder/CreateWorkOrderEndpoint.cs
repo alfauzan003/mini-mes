@@ -4,6 +4,7 @@ using MiniMes.Api.Modules.Lots.LotIds;
 using MiniMes.Api.Modules.WorkOrders.Domain;
 using MiniMes.Api.Modules.WorkOrders.Features.Queries;
 using MiniMes.Api.Shared.Data;
+using MiniMes.Api.Shared.Http;
 using MiniMes.Api.Shared.Results;
 using EquipmentEntity = MiniMes.Api.Modules.Equipment.Domain.Equipment;
 
@@ -104,7 +105,14 @@ public static class CreateWorkOrderEndpoint
     public static void MapCreateWorkOrder(this IEndpointRouteBuilder app) =>
         app.MapPost("/api/work-orders", async (
             CreateWorkOrderRequest request, CreateWorkOrderHandler handler, CancellationToken ct) =>
-            (await handler.HandleAsync(request, ct))
-                .ToHttpResult(wo => TypedResults.Created($"/api/work-orders/{wo.Id}", wo)))
+        {
+            if (MalformedBody.HasNullItem(request.Operations))
+            {
+                return MalformedBody.Problem("Every operation must be an object.");
+            }
+
+            return (await handler.HandleAsync(request, ct))
+                .ToHttpResult(wo => TypedResults.Created($"/api/work-orders/{wo.Id}", wo));
+        })
             .RequireAuthorization(Policies.Plan);
 }

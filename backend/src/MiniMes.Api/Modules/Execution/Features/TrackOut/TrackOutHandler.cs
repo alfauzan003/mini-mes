@@ -6,14 +6,16 @@ using MiniMes.Api.Modules.Identity;
 using MiniMes.Api.Modules.Lots.Domain;
 using MiniMes.Api.Modules.WorkOrders.Domain;
 using MiniMes.Api.Shared.Data;
+using MiniMes.Api.Shared.Quantities;
 using MiniMes.Api.Shared.Results;
 using EquipmentEntity = MiniMes.Api.Modules.Equipment.Domain.Equipment;
 
 namespace MiniMes.Api.Modules.Execution.Features.TrackOut;
 
 /// <summary>
-/// Ends a run: each input lot still running is charged its consumed quantity (the rest returns to WAIT),
-/// emptied carriers are unloaded, and the equipment is freed.
+/// Ends a run: each input lot still running on the run's equipment is charged its consumed quantity (the rest
+/// returns to WAIT), emptied carriers are unloaded, and the equipment is freed. Calendering never consumes its
+/// roll: a roll it did not get to calender simply goes back to WAIT unchanged.
 /// </summary>
 public sealed class TrackOutHandler(
     MesDbContext db,
@@ -21,9 +23,6 @@ public sealed class TrackOutHandler(
     ICurrentUser user,
     TimeProvider time)
 {
-    /// <summary>Quantities are stored as numeric(12,3); more precision would be silently rounded.</summary>
-    private const int QtyDecimals = 3;
-
     public async Task<Result<RunDto>> HandleAsync(Guid runId, TrackOutRequest request, CancellationToken ct)
     {
         var consumptions = request.Consumptions ?? [];
@@ -52,18 +51,22 @@ public sealed class TrackOutHandler(
             return new Error(ErrorCodes.RunNotOpen, "The production run is already closed.");
         }
 
+        var step = await db.Set<WorkOrderOperation>().SingleAsync(o => o.Id == run.WorkOrderOperationId, ct);
         var inputIds = run.Inputs.Select(i => i.LotId).ToArray();
         var lots = await db.Set<Lot>().Where(l => inputIds.Contains(l.Id)).OrderBy(l => l.LotId).ToListAsync(ct);
 
-        var listed = ResolveConsumptions(consumptions, lots);
+        var listed = ResolveConsumptions(consumptions, lots, step.Operation, run.PrimaryLotId);
         if (!listed.IsSuccess)
         {
             return listed.Error!;
         }
 
-        // An input that already left RUN (the calendered roll went back to WAIT at produce) is not consumed.
-        var plan = lots
-            .Where(l => l.Status == LotStatus.Run)
+        // A lot is this run's to consume only while it is RUN on the run's equipment: the calendered roll goes back
+        // to WAIT at produce and may already be running on the slitter by the time calendering is tracked out.
+        var running = lots.Where(l => l.Status == LotStatus.Run && l.CurrentEquipmentId == run.EquipmentId).ToList();
+        var unusedRoll = step.Operation == OperationCode.Cal ? running.SingleOrDefault(l => l.Id == run.PrimaryLotId) : null;
+        var plan = running
+            .Where(l => l != unusedRoll)
             .Select(l => (Lot: l, Qty: listed.Value.GetValueOrDefault(l.Id, l.Qty)))
             .ToList();
         var tooMuch = plan.FirstOrDefault(p => p.Qty > p.Lot.Qty).Lot;
@@ -72,7 +75,6 @@ public sealed class TrackOutHandler(
             return new Error(ErrorCodes.QtyExceedsLot, $"Lot {tooMuch.LotId} has only {tooMuch.Qty} {tooMuch.Uom}.");
         }
 
-        var step = await db.Set<WorkOrderOperation>().SingleAsync(o => o.Id == run.WorkOrderOperationId, ct);
         var equipment = await db.Set<EquipmentEntity>().SingleAsync(e => e.Id == run.EquipmentId, ct);
         var carrierIds = plan
             .Where(p => p.Qty == p.Lot.Qty && p.Lot.CurrentCarrierId is not null)
@@ -81,6 +83,7 @@ public sealed class TrackOutHandler(
         var carriers = await db.Set<Carrier>().Where(c => carrierIds.Contains(c.Id)).ToDictionaryAsync(c => c.Id, ct);
 
         var now = time.GetUtcNow();
+        var consumedByLot = plan.ToDictionary(p => p.Lot.Id, p => p.Qty);
         foreach (var (lot, qty) in plan)
         {
             // Events are written before the lot changes: using it up clears its carrier, which they must record.
@@ -99,7 +102,20 @@ public sealed class TrackOutHandler(
             }
         }
 
-        var ended = run.End(plan.ToDictionary(p => p.Lot.Id, p => p.Qty), now);
+        if (unusedRoll is not null)
+        {
+            db.Set<LotEvent>().Add(LotEvent.Record(
+                unusedRoll, LotEventType.TrackOut, user.UserId, now, runId: run.Id, qty: 0m, operation: step.Operation));
+            var returned = unusedRoll.ReturnToWait();
+            if (!returned.IsSuccess)
+            {
+                return returned.Error!;
+            }
+
+            consumedByLot[unusedRoll.Id] = 0m;
+        }
+
+        var ended = run.End(consumedByLot, now);
         if (!ended.IsSuccess)
         {
             return ended.Error!;
@@ -111,7 +127,7 @@ public sealed class TrackOutHandler(
 
     /// <summary>Maps each listed lot to its consumed quantity, rejecting anything that is not a clean input.</summary>
     private static Result<Dictionary<Guid, decimal>> ResolveConsumptions(
-        IReadOnlyList<Consumption> consumptions, IReadOnlyList<Lot> inputs)
+        IReadOnlyList<Consumption> consumptions, IReadOnlyList<Lot> inputs, OperationCode operation, Guid? primaryLotId)
     {
         var byCode = inputs.ToDictionary(l => l.LotId);
         var listed = new Dictionary<Guid, decimal>();
@@ -128,14 +144,32 @@ public sealed class TrackOutHandler(
                 return new Error(ErrorCodes.InvalidInputSet, $"Lot {lot.LotId} is listed more than once.");
             }
 
-            if (item.ConsumedQty < 0 || decimal.Round(item.ConsumedQty, QtyDecimals) != item.ConsumedQty)
+            var isPrimary = lot.Id == primaryLotId;
+            if (operation == OperationCode.Cal && isPrimary)
+            {
+                return new Error(
+                    ErrorCodes.InvalidInputSet, $"Calendering never consumes its roll, so {lot.LotId} cannot be listed.");
+            }
+
+            var qty = item.ConsumedQty ?? 0m;
+            if (qty < 0)
+            {
+                return new Error(ErrorCodes.InvalidQuantity, $"Consumed quantity of {lot.LotId} cannot be negative.");
+            }
+
+            if (QuantityRules.CheckFits(qty, $"Consumed quantity of {lot.LotId}") is { } badQty)
+            {
+                return badQty;
+            }
+
+            if (operation == OperationCode.Slit && isPrimary && qty != lot.Qty)
             {
                 return new Error(
                     ErrorCodes.InvalidQuantity,
-                    $"Consumed quantity of {lot.LotId} cannot be negative and has at most {QtyDecimals} decimals.");
+                    $"Slitting uses up the whole electrode: {lot.LotId} must be consumed in full ({lot.Qty} {lot.Uom}).");
             }
 
-            listed[lot.Id] = item.ConsumedQty;
+            listed[lot.Id] = qty;
         }
 
         return listed;

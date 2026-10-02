@@ -106,6 +106,18 @@ public class Lot
         return Result.Success();
     }
 
+    /// <summary>Gives a running lot back untouched: quantity, carrier and next operation stay as they were.</summary>
+    public Result ReturnToWait()
+    {
+        if (Status != LotStatus.Run)
+        {
+            return NotAvailable();
+        }
+
+        Status = LotStatus.Wait;
+        return Result.Success();
+    }
+
     /// <summary>Calendering keeps the same lot: it returns to WAIT with the good length, quality reset, headed for the next step.</summary>
     public Result CompleteCalendering(decimal goodQty, Product product)
     {

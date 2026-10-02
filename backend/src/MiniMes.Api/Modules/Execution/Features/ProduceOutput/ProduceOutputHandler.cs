@@ -8,6 +8,7 @@ using MiniMes.Api.Modules.Lots.LotIds;
 using MiniMes.Api.Modules.WorkOrders.Domain;
 using MiniMes.Api.Shared.Data;
 using MiniMes.Api.Shared.Quality;
+using MiniMes.Api.Shared.Quantities;
 using MiniMes.Api.Shared.Results;
 using EquipmentEntity = MiniMes.Api.Modules.Equipment.Domain.Equipment;
 
@@ -56,6 +57,14 @@ public sealed class ProduceOutputHandler(
             return new Error(
                 ErrorCodes.InvalidQuantity,
                 "Good and reject quantities cannot be negative, and each line needs a quantity above zero.");
+        }
+
+        var unfit = lines
+            .Select(l => QuantityRules.CheckFits(l.GoodQty, "Good quantity") ?? QuantityRules.CheckFits(l.RejectQty, "Reject quantity"))
+            .FirstOrDefault(error => error is not null);
+        if (unfit is not null)
+        {
+            return unfit;
         }
 
         var step = await db.Set<WorkOrderOperation>().SingleAsync(o => o.Id == run.WorkOrderOperationId, ct);

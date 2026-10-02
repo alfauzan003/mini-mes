@@ -79,6 +79,18 @@ public class LotEndpointTests(MesApiFactory api) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Register_qty_with_more_than_three_decimals_is_invalid_quantity()
+    {
+        var client = await api.ClientAsAsync("planner");
+
+        var response = await client.PostAsJsonAsync(
+            "/api/lots/materials", new { materialCode = "NCM811", qty = 1.0005m }, Ct);
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Equal("INVALID_QUANTITY", (await ReadAsync(response)).GetProperty("errorCode").GetString());
+    }
+
+    [Fact]
     public async Task Operator_cannot_register_material()
     {
         var client = await api.ClientAsAsync("operator");

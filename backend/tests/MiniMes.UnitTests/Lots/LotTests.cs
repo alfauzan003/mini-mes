@@ -137,6 +137,31 @@ public class LotTests
     }
 
     [Fact]
+    public void Returning_a_running_lot_to_wait_changes_nothing_else()
+    {
+        var lot = Electrode(OperationCode.Cal, 1180);
+        var carrierId = Guid.NewGuid();
+        lot.PlaceOnCarrier(carrierId);
+        lot.TrackIn(Guid.NewGuid());
+
+        var result = lot.ReturnToWait();
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(LotStatus.Wait, lot.Status);
+        Assert.Equal(1180, lot.Qty);
+        Assert.Equal(carrierId, lot.CurrentCarrierId);
+        Assert.Equal(OperationCode.Slit, lot.NextOperation);
+    }
+
+    [Fact]
+    public void Returning_a_lot_that_is_not_running_to_wait_is_lot_not_available()
+    {
+        var lot = Electrode();
+
+        Assert.Equal(ErrorCodes.LotNotAvailable, lot.ReturnToWait().Error!.Code);
+    }
+
+    [Fact]
     public void Calendering_keeps_lot_resets_quality_and_points_to_slit()
     {
         var lot = Electrode(OperationCode.Coat, 6000);

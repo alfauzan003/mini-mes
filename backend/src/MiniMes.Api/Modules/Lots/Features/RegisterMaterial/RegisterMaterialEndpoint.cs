@@ -4,6 +4,7 @@ using MiniMes.Api.Modules.Lots.Domain;
 using MiniMes.Api.Modules.Lots.Features.Queries;
 using MiniMes.Api.Modules.Lots.LotIds;
 using MiniMes.Api.Shared.Data;
+using MiniMes.Api.Shared.Quantities;
 using MiniMes.Api.Shared.Results;
 
 namespace MiniMes.Api.Modules.Lots.Features.RegisterMaterial;
@@ -13,14 +14,16 @@ public sealed record RegisterMaterialRequest(string MaterialCode, decimal Qty);
 public sealed class RegisterMaterialHandler(
     MesDbContext db, LotIdGenerator lotIds, LotQueries queries, ICurrentUser user, TimeProvider time)
 {
-    /// <summary>Largest quantity the lot table's numeric(12,3) column can hold.</summary>
-    private const decimal MaxQty = 999_999_999.999m;
-
     public async Task<Result<LotDto>> HandleAsync(RegisterMaterialRequest request, CancellationToken ct)
     {
-        if (request.Qty <= 0 || request.Qty > MaxQty)
+        if (request.Qty <= 0)
         {
-            return new Error(ErrorCodes.InvalidQuantity, $"Quantity must be greater than 0 and at most {MaxQty:N3}.");
+            return new Error(ErrorCodes.InvalidQuantity, "Quantity must be greater than 0.");
+        }
+
+        if (QuantityRules.CheckFits(request.Qty, "Quantity") is { } unfit)
+        {
+            return unfit;
         }
 
         var code = (request.MaterialCode ?? "").Trim().ToUpperInvariant();

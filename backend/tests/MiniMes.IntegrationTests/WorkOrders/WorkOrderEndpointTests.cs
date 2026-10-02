@@ -162,6 +162,27 @@ public class WorkOrderEndpointTests(MesApiFactory api) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Null_operation_element_is_a_400_bad_request_on_create_and_update()
+    {
+        var planner = await api.ClientAsAsync("planner");
+        var created = await CreateAsync(planner);
+        var body = new
+        {
+            productCode = "CATH-NCM811",
+            targetQty = 8,
+            plannedStart = "2026-10-05T01:00:00Z",
+            plannedEnd = "2026-10-06T01:00:00Z",
+            operations = new object?[] { null }
+        };
+
+        var create = await planner.PostAsJsonAsync("/api/work-orders", body, Ct);
+        var update = await planner.PutAsJsonAsync($"/api/work-orders/{created.GetProperty("id").GetGuid()}", body, Ct);
+
+        Assert.Equal(HttpStatusCode.BadRequest, create.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, update.StatusCode);
+    }
+
+    [Fact]
     public async Task Update_changes_target_dates_and_equipment()
     {
         var planner = await api.ClientAsAsync("planner");
