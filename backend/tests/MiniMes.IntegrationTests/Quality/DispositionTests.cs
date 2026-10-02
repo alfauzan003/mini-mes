@@ -195,6 +195,31 @@ public class DispositionTests(MesApiFactory api) : IAsyncLifetime
         Assert.Equal(LotStatus.Hold, (await driver.LotAsync(roll)).Status);
     }
 
+    [Theory]
+    [InlineData("""{"reason":"Because"}""")]
+    [InlineData("""{"decision":null,"reason":"Because"}""")]
+    [InlineData("""{"decision":7,"reason":"Because"}""")]
+    [InlineData("""{"decision":-1,"reason":"Because"}""")]
+    [InlineData("""{"decision":"MAYBE","reason":"Because"}""")]
+    public async Task Missing_or_unknown_decision_is_rejected_and_the_lot_stays_held(string body)
+    {
+        var driver = new ProductionDriver(api);
+        var (_, roll) = await ProduceCoatedRollAsync(driver, "BB-0001");
+        await FailLoadingAsync(driver, roll);
+        var qc = await driver.QcAsync();
+
+        var response = await qc.PostAsync(
+            $"/api/lots/{roll}/disposition", new StringContent(body, System.Text.Encoding.UTF8, "application/json"), Ct);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var lot = await driver.LotAsync(roll);
+        Assert.Equal(LotStatus.Hold, lot.Status);
+        Assert.Equal(QualityStatus.Fail, lot.Quality);
+        Assert.Null(Assert.Single(await HistoryAsync(qc, roll)).Disposition);
+        Assert.DoesNotContain(
+            await EventsAsync(qc, roll), e => e.Type is LotEventType.Release or LotEventType.Scrap);
+    }
+
     [Fact]
     public async Task Operator_cannot_disposition()
     {

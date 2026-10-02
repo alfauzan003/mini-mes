@@ -4,13 +4,12 @@ using MiniMes.Api.Modules.Identity;
 using MiniMes.Api.Modules.Lots.Domain;
 using MiniMes.Api.Modules.Lots.Features.Queries;
 using MiniMes.Api.Modules.Quality.Domain;
-using MiniMes.Api.Modules.WorkOrders.Domain;
 using MiniMes.Api.Shared.Data;
 using MiniMes.Api.Shared.Results;
 
 namespace MiniMes.Api.Modules.Quality.Features.Dispositions;
 
-public sealed record DispositionRequest(Disposition Decision, string Reason);
+public sealed record DispositionRequest(Disposition? Decision, string Reason);
 
 /// <summary>
 /// Decides what happens to a held lot. Releasing accepts it (a failed lot becomes PASS, and a passing final pancake
@@ -19,16 +18,17 @@ public sealed record DispositionRequest(Disposition Decision, string Reason);
 /// </summary>
 public sealed class DispositionHandler(MesDbContext db, LotQueries queries, ICurrentUser user, TimeProvider time)
 {
-    public async Task<Result<LotDto>> HandleAsync(string lotId, DispositionRequest request, CancellationToken ct)
+    public async Task<Result<LotDto>> HandleAsync(
+        string lotId, Disposition decision, string? rawReason, CancellationToken ct)
     {
-        var reason = request.Reason?.Trim();
+        var reason = rawReason?.Trim();
         if (string.IsNullOrEmpty(reason))
         {
             return new Error(ErrorCodes.ReasonRequired, "A reason is required to disposition a lot.");
         }
 
         var decided = await db.ExecuteInTransactionAsync<string>(
-            token => DecideAsync(lotId, request.Decision, reason, token), ct);
+            token => DecideAsync(lotId, decision, reason, token), ct);
         if (!decided.IsSuccess)
         {
             return decided.Error!;
@@ -62,9 +62,12 @@ public sealed class DispositionHandler(MesDbContext db, LotQueries queries, ICur
             }
         }
 
-        var applied = decision == Disposition.Release
-            ? await ReleaseAsync(lot, reason, now, ct)
-            : await ScrapAsync(lot, reason, now, ct);
+        var applied = decision switch
+        {
+            Disposition.Release => await ReleaseAsync(lot, reason, now, ct),
+            Disposition.Scrap => await ScrapAsync(lot, reason, now, ct),
+            _ => throw new ArgumentOutOfRangeException(nameof(decision), decision, "Unknown disposition.")
+        };
         if (!applied.IsSuccess)
         {
             return applied.Error!;
@@ -100,16 +103,7 @@ public sealed class DispositionHandler(MesDbContext db, LotQueries queries, ICur
             return Result.Success();
         }
 
-        var finished = lot.Finish();
-        if (!finished.IsSuccess)
-        {
-            return finished;
-        }
-
-        db.Set<LotEvent>().Add(LotEvent.Record(lot, LotEventType.Finish, user.UserId, now));
-        var workOrder = await db.Set<WorkOrder>().SingleAsync(w => w.Id == lot.WorkOrderId, ct);
-        workOrder.RegisterFinishedPancake();
-        return Result.Success();
+        return await FinishPancake.ApplyAsync(db, lot, user.UserId, now, ct);
     }
 
     private async Task<Result> ScrapAsync(Lot lot, string reason, DateTimeOffset now, CancellationToken ct)

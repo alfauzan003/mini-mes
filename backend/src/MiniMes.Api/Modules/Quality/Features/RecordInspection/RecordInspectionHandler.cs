@@ -103,7 +103,7 @@ public sealed class RecordInspectionHandler(
         }
         else if (lot.IsFinal)
         {
-            var finished = await FinishAsync(lot, now, ct);
+            var finished = await FinishPancake.ApplyAsync(db, lot, user.UserId, now, ct);
             if (!finished.IsSuccess)
             {
                 return finished.Error!;
@@ -111,19 +111,5 @@ public sealed class RecordInspectionHandler(
         }
 
         return inspection.Id;
-    }
-
-    private async Task<Result> FinishAsync(Lot lot, DateTimeOffset now, CancellationToken ct)
-    {
-        var finished = lot.Finish();
-        if (!finished.IsSuccess)
-        {
-            return finished.Error!;
-        }
-
-        db.Set<LotEvent>().Add(LotEvent.Record(lot, LotEventType.Finish, user.UserId, now));
-        var workOrder = await db.Set<WorkOrder>().SingleAsync(w => w.Id == lot.WorkOrderId, ct);
-        workOrder.RegisterFinishedPancake();
-        return Result.Success();
     }
 }
