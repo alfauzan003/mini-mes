@@ -33,3 +33,9 @@ public sealed record RunOutputDto(
     string? LotId, string? CarrierCode, int? Lane, decimal GoodQty, decimal RejectQty);
 
 public sealed record TrackInRequest(string EquipmentCode, Guid WorkOrderOperationId, IReadOnlyList<string> Inputs);
+
+/// <param name="CarrierCode">Carrier the output goes onto; null when the operation uses none.</param>
+/// <param name="Lane">Slitting lane, 1-based; null for operations without lanes.</param>
+public sealed record OutputLine(string? CarrierCode, int? Lane, decimal GoodQty, decimal RejectQty);
+
+public sealed record ProduceOutputRequest(IReadOnlyList<OutputLine> Outputs);

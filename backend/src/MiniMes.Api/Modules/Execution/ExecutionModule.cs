@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using MiniMes.Api.Modules.Execution.Features.ProduceOutput;
 using MiniMes.Api.Modules.Execution.Features.Queries;
 using MiniMes.Api.Modules.Execution.Features.TrackIn;
 using MiniMes.Api.Shared.Quality;
@@ -13,6 +14,7 @@ public static class ExecutionModule
         services.AddScoped<ScanResolver>();
         services.AddScoped<RunQueries>();
         services.AddScoped<TrackInHandler>();
+        services.AddScoped<ProduceOutputHandler>();
         return services;
     }
 
@@ -20,6 +22,7 @@ public static class ExecutionModule
     {
         app.MapRunQueries();
         app.MapTrackIn();
+        app.MapProduceOutput();
         return app;
     }
 }

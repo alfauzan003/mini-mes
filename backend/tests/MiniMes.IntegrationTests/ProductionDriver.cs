@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using MiniMes.Api.Modules.Carriers.Features.Queries;
 using MiniMes.Api.Modules.Equipment.Features.Queries;
 using MiniMes.Api.Modules.Execution;
 using MiniMes.Api.Modules.Lots.Domain;
@@ -121,6 +122,20 @@ public sealed class ProductionDriver(MesApiFactory api)
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<RunDto>(Json, Ct))!;
     }
+
+    public async Task<HttpResponseMessage> ProduceAsync(Guid runId, params OutputLine[] lines) =>
+        await (await OperatorAsync()).PostAsJsonAsync(
+            $"/api/runs/{runId}/outputs", new ProduceOutputRequest(lines), Json, Ct);
+
+    public async Task<RunDto> ProduceOkAsync(Guid runId, params OutputLine[] lines)
+    {
+        var response = await ProduceAsync(runId, lines);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<RunDto>(Json, Ct))!;
+    }
+
+    public async Task<CarrierDto> CarrierAsync(string code) =>
+        (await (await OperatorAsync()).GetFromJsonAsync<CarrierDto>($"/api/carriers/{code}", Json, Ct))!;
 
     public async Task<LotDto> LotAsync(string lotId) =>
         (await (await OperatorAsync()).GetFromJsonAsync<LotDto>($"/api/lots/{lotId}", Json, Ct))!;
