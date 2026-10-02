@@ -1,7 +1,9 @@
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using MiniMes.Api.Shared.Data;
 using MiniMes.Api.Shared.Data.Seed;
@@ -23,15 +25,28 @@ public sealed class MesApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
         await _postgres.DisposeAsync();
     }
 
-    protected override void ConfigureWebHost(IWebHostBuilder builder) =>
-        builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["ConnectionStrings:Mes"] = _postgres.GetConnectionString(),
-            ["Database:MigrateOnStartup"] = "true",
-            ["Database:Seed"] = "false",
-            ["Seed:DemoPassword"] = "test-pass",
-            ["Demo:EnableQuickLogin"] = "true"
-        }));
+    // UseSetting (host configuration) rather than an in-memory source, so a derived
+    // factory's UseSetting(...) can still override these defaults.
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        builder.UseSetting("ConnectionStrings:Mes", _postgres.GetConnectionString());
+        builder.UseSetting("Database:MigrateOnStartup", "true");
+        builder.UseSetting("Database:Seed", "false");
+        builder.UseSetting("Seed:DemoPassword", "test-pass");
+        builder.UseSetting("Demo:EnableQuickLogin", "true");
+    }
+
+    public async Task<HttpClient> ClientAsAsync(string username)
+    {
+        var client = CreateClient();
+        var response = await client.PostAsJsonAsync(
+            "/api/auth/login", new { username, password = "test-pass" }, TestContext.Current.CancellationToken);
+        response.EnsureSuccessStatusCode();
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", body.GetProperty("token").GetString());
+        return client;
+    }
 
     public async Task ResetDatabaseAsync()
     {
