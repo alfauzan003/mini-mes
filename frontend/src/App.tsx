@@ -1,5 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router'
 import { LoginPage } from '@/features/auth/LoginPage'
+import { StationPage } from '@/features/operator/StationPage'
+import { StationPickerPage } from '@/features/operator/StationPickerPage'
 import { WorkOrderDetailPage } from '@/features/work-orders/WorkOrderDetailPage'
 import { WorkOrderListPage } from '@/features/work-orders/WorkOrderListPage'
 import { useAuth } from '@/shared/auth/AuthContext'
@@ -25,7 +27,7 @@ export function App() {
             path="station"
             element={
               <RequireRole roles={['OPERATOR', 'ADMIN']}>
-                <PlaceholderPage title="Operator Station" />
+                <StationPickerPage />
               </RequireRole>
             }
           />
@@ -33,7 +35,7 @@ export function App() {
             path="station/:equipmentCode"
             element={
               <RequireRole roles={['OPERATOR', 'ADMIN']}>
-                <PlaceholderPage title="Station" />
+                <StationPage />
               </RequireRole>
             }
           />
