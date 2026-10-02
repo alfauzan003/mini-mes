@@ -250,6 +250,83 @@ export interface AssignmentDto {
   goodCount: number
 }
 
+// Quality
+export type Judgment = 'OK' | 'NG'
+export type InspectionResult = 'PASS' | 'FAIL'
+export type Disposition = 'RELEASE' | 'SCRAP'
+
+/** Limits are inclusive: a value equal to LSL or USL is OK. */
+export interface InspectionSpecDto {
+  id: string
+  productCode: string
+  operation: OperationCode
+  itemName: string
+  unit: string
+  lsl: number
+  usl: number
+  seq: number
+}
+
+export interface UpdateSpecLimitsRequest {
+  lsl: number
+  usl: number
+}
+
+/** operation is null for a general code that applies to every operation. */
+export interface DefectCodeDto {
+  code: string
+  description: string
+  operation: OperationCode | null
+}
+
+export interface MeasurementDto {
+  itemName: string
+  unit: string
+  lsl: number
+  usl: number
+  value: number
+  judgment: Judgment
+}
+
+export interface InspectionDto {
+  id: string
+  lotId: string
+  operation: OperationCode
+  inspector: string
+  inspectedAt: string
+  result: InspectionResult
+  defectCode: string | null
+  defectDescription: string | null
+  reason: string | null
+  rejectQty: number | null
+  disposition: Disposition | null
+  dispositionBy: string | null
+  dispositionAt: string | null
+  dispositionReason: string | null
+  measurements: MeasurementDto[]
+}
+
+export interface MeasurementInput {
+  specId: string
+  value: number
+}
+
+export interface RecordInspectionRequest {
+  measurements: MeasurementInput[]
+  defectCode: string | null
+  reason: string | null
+  rejectQty: number | null
+}
+
+export interface HoldLotRequest {
+  reason: string
+}
+
+export interface DispositionRequest {
+  decision: Disposition
+  reason: string
+}
+
 // Errors (RFC 7807 ProblemDetails with an errorCode extension)
 export interface ProblemDetails {
   type?: string
