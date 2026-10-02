@@ -22,6 +22,7 @@ builder.Services.AddDbContext<MesDbContext>((sp, options) =>
         .UseSnakeCaseNamingConvention());
 builder.Services.AddScoped<DemoSeeder>();
 builder.Services.AddIdentityModule();
+builder.Services.AddLotsModule();
 
 var app = builder.Build();
 
