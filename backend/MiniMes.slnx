@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MiniMes.Api/MiniMes.Api.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MiniMes.UnitTests/MiniMes.UnitTests.csproj" />
+  </Folder>
+</Solution>
