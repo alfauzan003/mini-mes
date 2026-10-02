@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: mes
       POSTGRES_DB: mini_mes
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql
     healthcheck:
@@ -14,6 +14,30 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: src/MiniMes.Api/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__Mes: "${MES_CONNECTION_STRING:-Host=postgres;Port=5432;Database=mini_mes;Username=mes;Password=mes}"
+      Jwt__Key: "${JWT_KEY:-demo-only-jwt-signing-key-change-me-0123456789}"
+      Seed__DemoPassword: "${DEMO_PASSWORD:-demo-pass}"
+      Demo__EnableQuickLogin: "true"
+      Database__MigrateOnStartup: "true"
+      Database__Seed: "true"
+      Plant__TimeZone: "${PLANT_TIME_ZONE:-Asia/Jakarta}"
+
+  frontend:
+    build:
+      context: ./frontend
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
 
 volumes:
   pgdata:
