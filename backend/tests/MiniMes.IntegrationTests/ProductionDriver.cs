@@ -35,6 +35,7 @@ public sealed class ProductionDriver(WebApplicationFactory<Program> api)
 {
     private const decimal RawQty = 500m;
     private const decimal FoilQty = 6000m;
+    private const int SlitterLanes = 8;
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
@@ -152,11 +153,13 @@ public sealed class ProductionDriver(WebApplicationFactory<Program> api)
         await AfterAsync(afterProduce, electrode);
         await TrackOutOkAsync(cal.Id);
 
-        // SLIT: one 145 m lane per good pancake on cores PC-0001...
+        // SLIT: a 145 m pancake on cores PC-0001... in each of the first lanes; the slitter has 8, the rest give nothing.
         var slit = await TrackInOkAsync("SL01", wo, OperationCode.Slit, "BB-0002");
-        var pancakes = (await ProduceOkAsync(
-                slit.Id, [.. Enumerable.Range(1, target).Select(lane => new OutputLine($"PC-{lane:0000}", lane, 145m, 2m))]))
-            .Outputs.Select(o => o.LotId!).ToArray();
+        var lanes = Enumerable.Range(1, SlitterLanes)
+            .Select(lane => lane <= target ? new OutputLine($"PC-{lane:0000}", lane, 145m, 2m) : new OutputLine(null, lane, 0m, 145m))
+            .ToArray();
+        var pancakes = (await ProduceOkAsync(slit.Id, lanes)).Outputs.Where(o => o.LotId is not null)
+            .Select(o => o.LotId!).ToArray();
         await TrackOutOkAsync(slit.Id);
 
         return new FullFlow(wo, raws, foil, slurry, electrode, pancakes, slit.Id);
