@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using MiniMes.Api.Shared.Results;
 
@@ -30,5 +31,19 @@ public class ResultHttpExtensionsTests
     {
         Result<int> result = 42;
         Assert.Equal(42, Assert.IsType<Ok<int>>(result.ToHttpResult()).Value);
+    }
+
+    [Fact]
+    public void Success_uses_on_success_override()
+    {
+        Result<int> result = 7;
+        var http = result.ToHttpResult(v => TypedResults.Created($"/x/{v}", v));
+        Assert.Equal(201, Assert.IsType<Created<int>>(http).StatusCode);
+    }
+
+    [Fact]
+    public void Non_generic_success_maps_to_no_content()
+    {
+        Assert.IsType<NoContent>(Result.Success().ToHttpResult());
     }
 }
