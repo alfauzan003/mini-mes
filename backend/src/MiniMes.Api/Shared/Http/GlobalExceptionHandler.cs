@@ -24,6 +24,15 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
                 Extensions = { ["errorCode"] = ErrorCodes.ConcurrencyConflict }
             };
         }
+        else if (exception is BadHttpRequestException badRequest)
+        {
+            problem = new ProblemDetails
+            {
+                Status = badRequest.StatusCode,
+                Title = "Bad request",
+                Detail = "The request body or parameters could not be read."
+            };
+        }
         else
         {
             logger.LogError(exception, "Unhandled exception");

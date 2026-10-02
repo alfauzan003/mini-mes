@@ -23,6 +23,7 @@ builder.Services.AddDbContext<MesDbContext>((sp, options) =>
 builder.Services.AddScoped<DemoSeeder>();
 builder.Services.AddIdentityModule();
 builder.Services.AddLotsModule();
+builder.Services.AddWorkOrdersModule();
 
 var app = builder.Build();
 
