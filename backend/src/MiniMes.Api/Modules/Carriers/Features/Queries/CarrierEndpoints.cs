@@ -1,12 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using MiniMes.Api.Modules.Carriers.Domain;
+using MiniMes.Api.Modules.Lots.Domain;
 using MiniMes.Api.Shared.Data;
 using MiniMes.Api.Shared.Http;
 using MiniMes.Api.Shared.Results;
 
 namespace MiniMes.Api.Modules.Carriers.Features.Queries;
 
-/// <param name="LotId">The lot's string ID. Always null until the lots module exists to join against.</param>
+/// <param name="LotId">The string ID of the lot loaded on the carrier; null when empty.</param>
 public sealed record CarrierDto(string Code, string Type, CarrierStatus Status, string? LotId);
 
 public static class CarrierEndpoints
@@ -32,19 +33,14 @@ public static class CarrierEndpoints
                 query = query.Where(c => c.Status == filter);
             }
 
-            var items = await query
-                .OrderBy(c => c.Code)
-                .Select(c => new CarrierDto(c.Code, c.TypeCode, c.Status, null))
-                .ToListAsync(ct);
+            var items = await Project(query.OrderBy(c => c.Code), db).ToListAsync(ct);
             return TypedResults.Ok(items);
         }).RequireAuthorization();
 
         app.MapGet("/api/carriers/{code}", async (string code, MesDbContext db, CancellationToken ct) =>
         {
             var normalized = code.Trim().ToUpperInvariant();
-            var dto = await db.Set<Carrier>().AsNoTracking()
-                .Where(c => c.Code == normalized)
-                .Select(c => new CarrierDto(c.Code, c.TypeCode, c.Status, null))
+            var dto = await Project(db.Set<Carrier>().AsNoTracking().Where(c => c.Code == normalized), db)
                 .SingleOrDefaultAsync(ct);
 
             Result<CarrierDto> result = dto is not null
@@ -53,4 +49,9 @@ public static class CarrierEndpoints
             return result.ToHttpResult();
         }).RequireAuthorization();
     }
+
+    private static IQueryable<CarrierDto> Project(IQueryable<Carrier> carriers, MesDbContext db) =>
+        carriers.Select(c => new CarrierDto(
+            c.Code, c.TypeCode, c.Status,
+            db.Set<Lot>().Where(l => l.Id == c.CurrentLotId).Select(l => l.LotId).FirstOrDefault()));
 }

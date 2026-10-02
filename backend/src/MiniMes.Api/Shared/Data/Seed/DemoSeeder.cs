@@ -3,14 +3,19 @@ using Microsoft.EntityFrameworkCore;
 using MiniMes.Api.Modules.Carriers.Domain;
 using MiniMes.Api.Modules.Identity;
 using MiniMes.Api.Modules.Lots.Domain;
+using MiniMes.Api.Modules.Lots.LotIds;
 using MiniMes.Api.Modules.WorkOrders.Domain;
+using MiniMes.Api.Shared.Results;
 using EquipmentEntity = MiniMes.Api.Modules.Equipment.Domain.Equipment;
 
 namespace MiniMes.Api.Shared.Data.Seed;
 
-public class DemoSeeder(MesDbContext db, IConfiguration configuration)
+public class DemoSeeder(MesDbContext db, IConfiguration configuration, LotIdGenerator lotIds, TimeProvider time)
 {
     private const int SlitterLaneCount = 8;
+    private const decimal RawLotQty = 500m;
+    private const decimal FoilLotQty = 6000m;
+    private const string AdminUsername = "admin";
 
     private static readonly (string Username, string DisplayName, Role Role)[] DemoUsers =
     [
@@ -29,6 +34,7 @@ public class DemoSeeder(MesDbContext db, IConfiguration configuration)
         await SeedEquipmentAsync(ct);
         await SeedCarriersAsync(ct);
         await db.SaveChangesAsync(ct);
+        await SeedMaterialLotsAsync(ct);
     }
 
     private async Task SeedUsersAsync(CancellationToken ct)
@@ -136,6 +142,43 @@ public class DemoSeeder(MesDbContext db, IConfiguration configuration)
 
         AddCarriers(types["BB"], 40);
         AddCarriers(types["PC"], 200);
+    }
+
+    /// <summary>One received lot per material, registered by the demo admin.</summary>
+    private async Task SeedMaterialLotsAsync(CancellationToken ct)
+    {
+        if (await db.Set<Lot>().AnyAsync(ct))
+        {
+            return;
+        }
+
+        var adminId = await db.Set<User>().Where(u => u.Username == AdminUsername).Select(u => u.Id).SingleAsync(ct);
+        var materials = await db.Set<Material>().OrderBy(m => m.Code).ToListAsync(ct);
+
+        var result = await db.ExecuteInTransactionAsync(async token =>
+        {
+            foreach (var material in materials)
+            {
+                var lotId = await lotIds.NextLotIdAsync(material.Kind, material.Polarity, null, token);
+                if (!lotId.IsSuccess)
+                {
+                    return lotId.Error!;
+                }
+
+                var now = time.GetUtcNow();
+                var qty = material.Kind == LotType.Foil ? FoilLotQty : RawLotQty;
+                var lot = Lot.RegisterMaterial(lotId.Value, material, qty, now);
+                db.Set<Lot>().Add(lot);
+                db.Set<LotEvent>().Add(LotEvent.Record(lot, LotEventType.Register, adminId, now, qty: qty));
+            }
+
+            return Result.Success();
+        }, ct);
+
+        if (!result.IsSuccess)
+        {
+            throw new InvalidOperationException($"Could not seed material lots: {result.Error!.Code}.");
+        }
     }
 
     private void AddCarriers(CarrierType type, int count) =>
