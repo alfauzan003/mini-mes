@@ -25,6 +25,8 @@ export function OpenRunPanel({ run, equipment }: OpenRunPanelProps) {
   const produced = run.outputs.length > 0
   // MIX, CAL and SLIT accept exactly one output set; the server rejects a second one.
   const singleOutput = run.operation !== 'COAT'
+  // Slitting uses up its electrode, so ending a run with no pancakes would lose it; the server rejects that too.
+  const needsOutput = run.operation === 'SLIT' && !produced
 
   return (
     <div className="space-y-6">
@@ -112,9 +114,16 @@ export function OpenRunPanel({ run, equipment }: OpenRunPanelProps) {
         </CardContent>
       </Card>
 
-      <Button size="lg" variant="secondary" className="min-h-12 w-full text-base" onClick={() => setTrackingOut(true)}>
+      <Button
+        size="lg"
+        variant="secondary"
+        className="min-h-12 w-full text-base"
+        disabled={needsOutput}
+        onClick={() => setTrackingOut(true)}
+      >
         Track out
       </Button>
+      {needsOutput && <p className="text-center text-sm text-muted-foreground">Record the slitting output first</p>}
       <TrackOutDialog
         run={run}
         open={trackingOut}

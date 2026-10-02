@@ -27,8 +27,15 @@ const mixRun: RunDto = {
   outputs: [],
 }
 
+const slitRun: RunDto = {
+  ...mixRun,
+  operation: 'SLIT',
+  parentLotId: 'EL-261003-001',
+  inputs: [{ lotId: 'EL-261003-001', type: 'ELECTRODE', role: 'PRIMARY', qty: 118, uom: 'm', consumedQty: null }],
+}
+
 function equipment(openRun: RunDto | null): EquipmentDto {
-  return { code: 'MX01', name: 'Mixer 1', operation: 'MIX', laneCount: null, status: openRun ? 'RUNNING' : 'IDLE', openRun }
+  return { code: 'MX01', name: 'Mixer 1', operation: 'MIX', laneCount: openRun?.operation === 'SLIT' ? 8 : null, status: openRun ? 'RUNNING' : 'IDLE', openRun }
 }
 
 interface Call {
@@ -117,5 +124,29 @@ describe('StationPage', () => {
 
     expect(await screen.findByText(/Output recorded/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Produce' })).not.toBeInTheDocument()
+  })
+
+  it('keeps Track out disabled for a SLIT run until its output is recorded', async () => {
+    stubApi(slitRun)
+    const { unmount } = renderStation()
+
+    const trackOut = await screen.findByRole('button', { name: 'Track out' })
+    expect(trackOut).toBeDisabled()
+    expect(screen.getByText('Record the slitting output first')).toBeInTheDocument()
+    unmount()
+
+    const produced = { ...slitRun, outputs: [{ lotId: 'PC-1', carrierCode: 'PC-0001', lane: 1, goodQty: 14, rejectQty: 0 }] }
+    stubApi(produced)
+    renderStation()
+
+    expect(await screen.findByRole('button', { name: 'Track out' })).toBeEnabled()
+    expect(screen.queryByText('Record the slitting output first')).not.toBeInTheDocument()
+  })
+
+  it('leaves Track out enabled for a MIX run with nothing produced', async () => {
+    stubApi(mixRun)
+    renderStation()
+
+    expect(await screen.findByRole('button', { name: 'Track out' })).toBeEnabled()
   })
 })

@@ -15,7 +15,8 @@ namespace MiniMes.Api.Modules.Execution.Features.TrackOut;
 /// <summary>
 /// Ends a run: each input lot still running on the run's equipment is charged its consumed quantity (the rest
 /// returns to WAIT), emptied carriers are unloaded, and the equipment is freed. Calendering never consumes its
-/// roll: a roll it did not get to calender simply goes back to WAIT unchanged.
+/// roll: a roll it did not get to calender simply goes back to WAIT unchanged. Slitting uses up its electrode, so
+/// it cannot be tracked out before its output is recorded.
 /// </summary>
 public sealed class TrackOutHandler(
     MesDbContext db,
@@ -52,6 +53,13 @@ public sealed class TrackOutHandler(
         }
 
         var step = await db.Set<WorkOrderOperation>().SingleAsync(o => o.Id == run.WorkOrderOperationId, ct);
+        if (step.Operation == OperationCode.Slit && run.Outputs.Count == 0)
+        {
+            // Slitting always uses up the electrode, so ending the run with no pancakes would lose it for good.
+            return new Error(
+                ErrorCodes.InvalidOutputSet, "Slitting needs its output recorded before track out.");
+        }
+
         var inputIds = run.Inputs.Select(i => i.LotId).ToArray();
         var lots = await db.Set<Lot>().Where(l => inputIds.Contains(l.Id)).OrderBy(l => l.LotId).ToListAsync(ct);
 

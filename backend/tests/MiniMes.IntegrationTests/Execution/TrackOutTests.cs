@@ -319,6 +319,32 @@ public class TrackOutTests(MesApiFactory api) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Slitting_track_out_without_output_is_invalid_output_set_until_produced()
+    {
+        var (wo, _, cal, roll) = await CalenderedStartedAsync();
+        await _driver.ProduceOkAsync(cal.Id, new OutputLine("BB-0002", null, 1180m, 20m));
+        await _driver.TrackOutOkAsync(cal.Id);
+        var slit = await _driver.TrackInOkAsync("SL01", wo, OperationCode.Slit, "BB-0002");
+
+        var response = await _driver.TrackOutAsync(slit.Id);
+
+        await ProductionDriver.AssertErrorAsync(response, 422, "INVALID_OUTPUT_SET");
+        var fetched = await _driver.RunAsync(slit.Id);
+        Assert.Null(fetched.EndedAt);
+        Assert.Null(Assert.Single(fetched.Inputs).ConsumedQty);
+        var lot = await _driver.LotAsync(roll);
+        Assert.Equal(LotStatus.Run, lot.Status);
+        Assert.Equal(1180m, lot.Qty);
+        Assert.Equal(EquipmentStatus.Running, (await _driver.EquipmentAsync("SL01")).Status);
+
+        await _driver.ProduceOkAsync(slit.Id, Grid());
+        var ended = await _driver.TrackOutOkAsync(slit.Id);
+
+        Assert.NotNull(ended.EndedAt);
+        Assert.Equal(LotStatus.Consumed, (await _driver.LotAsync(roll)).Status);
+    }
+
+    [Fact]
     public async Task Null_consumption_element_or_omitted_quantity_is_a_400_bad_request()
     {
         var (_, run, lots) = await StartMixAsync();
