@@ -1,4 +1,7 @@
 using MiniMes.Api.Modules.Quality.Features.DefectCodes;
+using MiniMes.Api.Modules.Quality.Features.Inspections;
+using MiniMes.Api.Modules.Quality.Features.Queue;
+using MiniMes.Api.Modules.Quality.Features.RecordInspection;
 using MiniMes.Api.Modules.Quality.Features.Specs;
 using MiniMes.Api.Shared.Quality;
 
@@ -10,6 +13,8 @@ public static class QualityModule
     {
         services.AddScoped<IInspectionRequirement, SpecInspectionRequirement>();
         services.AddScoped<UpdateSpecLimitsHandler>();
+        services.AddScoped<InspectionQueries>();
+        services.AddScoped<RecordInspectionHandler>();
         return services;
     }
 
@@ -17,6 +22,9 @@ public static class QualityModule
     {
         app.MapSpecEndpoints();
         app.MapDefectCodeEndpoints();
+        app.MapRecordInspection();
+        app.MapInspectionQueries();
+        app.MapInspectionQueue();
         return app;
     }
 }
