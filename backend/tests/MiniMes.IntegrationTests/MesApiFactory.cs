@@ -33,6 +33,7 @@ public sealed class MesApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
         builder.UseSetting("Database:MigrateOnStartup", "true");
         builder.UseSetting("Database:Seed", "false");
         builder.UseSetting("Seed:DemoPassword", "test-pass");
+        builder.UseSetting("Seed:InspectionSpecs", "false");
         builder.UseSetting("Demo:EnableQuickLogin", "true");
     }
 
@@ -60,6 +61,13 @@ public sealed class MesApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
         }
 
         await scope.ServiceProvider.GetRequiredService<DemoSeeder>().SeedAsync(CancellationToken.None);
+    }
+
+    /// <summary>Seeds the demo inspection specs, which the default test host leaves out.</summary>
+    public async Task SeedInspectionSpecsAsync()
+    {
+        await using var scope = Services.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<DemoSeeder>().SeedInspectionSpecsAsync(CancellationToken.None);
     }
 }
 
