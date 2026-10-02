@@ -63,15 +63,32 @@ describe('TrackOutDialog', () => {
     expect(screen.getByRole('button', { name: 'Confirm track out' })).toBeDisabled()
   })
 
-  it('hides the calendering primary once it has been produced', () => {
-    render(<TrackOutDialog run={calRun(true)} open onOpenChange={() => {}} submitting={false} onSubmit={vi.fn()} />)
+  it('never lists the calendering roll, produced or not, and sends nothing for it', async () => {
+    for (const produced of [true, false]) {
+      const onSubmit = vi.fn()
+      const { unmount } = render(
+        <TrackOutDialog run={calRun(produced)} open onOpenChange={() => {}} submitting={false} onSubmit={onSubmit} />,
+      )
 
-    expect(screen.queryByLabelText('Consumed EL-261003-001')).not.toBeInTheDocument()
+      expect(screen.queryByLabelText('Consumed EL-261003-001')).not.toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: 'Confirm track out' }))
+      expect(onSubmit).toHaveBeenCalledWith(null)
+      unmount()
+    }
   })
 
-  it('still lists the calendering primary before it has been produced', () => {
-    render(<TrackOutDialog run={calRun(false)} open onOpenChange={() => {}} submitting={false} onSubmit={vi.fn()} />)
+  it('fixes the slitting electrode to its full remaining qty', async () => {
+    const onSubmit = vi.fn()
+    const run: RunDto = { ...calRun(false), operation: 'SLIT' }
+    render(<TrackOutDialog run={run} open onOpenChange={() => {}} submitting={false} onSubmit={onSubmit} />)
 
-    expect(screen.getByLabelText('Consumed EL-261003-001')).toHaveValue(118)
+    const consumed = screen.getByLabelText('Consumed EL-261003-001')
+    expect(consumed).toHaveValue(118)
+    expect(consumed).toHaveAttribute('readonly')
+
+    await userEvent.type(consumed, '5')
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm track out' }))
+
+    expect(onSubmit).toHaveBeenCalledWith([{ lotId: 'EL-261003-001', consumedQty: 118 }])
   })
 })

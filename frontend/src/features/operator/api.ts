@@ -26,7 +26,7 @@ export function useAssignments(code: string | undefined) {
   })
 }
 
-/** Empty carriers of one type (BB = big box for electrode rolls, PC = pancake carrier). */
+/** Empty carriers of one type (BB = bobbin for electrode rolls, PC = pancake core). */
 export function useEmptyCarriers(type: 'BB' | 'PC' | undefined) {
   return useQuery({
     queryKey: ['carriers', { type, status: 'EMPTY' }],

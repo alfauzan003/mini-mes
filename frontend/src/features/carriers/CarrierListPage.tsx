@@ -7,8 +7,8 @@ import { StatusBadge } from '@/shared/ui/StatusBadge'
 import { useCarriers } from './api'
 
 const CARRIER_TYPES = [
-  { value: 'BB', label: 'BB (big box)' },
-  { value: 'PC', label: 'PC (pancake carrier)' },
+  { value: 'BB', label: 'BB (bobbin)' },
+  { value: 'PC', label: 'PC (pancake core)' },
 ] as const
 
 export function CarrierListPage() {

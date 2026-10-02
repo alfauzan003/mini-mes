@@ -13,12 +13,16 @@ interface TrackOutDialogProps {
 }
 
 /**
- * Calendering hands the primary lot on as the output itself: once it has been produced it is already
- * back to WAIT, so it takes no consumption at track-out.
+ * Calendering never consumes its roll: the roll is the output itself and stays in stock (or goes back to
+ * stock if nothing was produced), so it is never listed and never sent.
  */
 function consumableInputs(run: RunDto): RunInputDto[] {
-  const calPrimaryProduced = run.operation === 'CAL' && run.outputs.length > 0
-  return run.inputs.filter((input) => !(calPrimaryProduced && input.role === 'PRIMARY'))
+  return run.inputs.filter((input) => !(run.operation === 'CAL' && input.role === 'PRIMARY'))
+}
+
+/** Slitting always uses up the whole electrode, so its consumed qty is fixed to the remaining qty. */
+function isFixedInput(run: RunDto, input: RunInputDto): boolean {
+  return run.operation === 'SLIT' && input.role === 'PRIMARY'
 }
 
 function TrackOutForm({ run, submitting, onSubmit, onCancel }: Omit<TrackOutDialogProps, 'open' | 'onOpenChange'> & { onCancel: () => void }) {
@@ -28,6 +32,7 @@ function TrackOutForm({ run, submitting, onSubmit, onCancel }: Omit<TrackOutDial
   )
 
   function errorFor(input: RunInputDto): string | null {
+    if (isFixedInput(run, input)) return null
     const text = values[input.lotId] ?? ''
     const qty = Number(text)
     if (text.trim() === '' || Number.isNaN(qty) || qty < 0) return 'Enter a quantity of 0 or more'
@@ -56,6 +61,7 @@ function TrackOutForm({ run, submitting, onSubmit, onCancel }: Omit<TrackOutDial
         <ul className="space-y-3">
           {inputs.map((input) => {
             const error = errorFor(input)
+            const fixed = isFixedInput(run, input)
             return (
               <li key={input.lotId} className="space-y-1">
                 <div className="flex items-center justify-between gap-3">
@@ -73,6 +79,7 @@ function TrackOutForm({ run, submitting, onSubmit, onCancel }: Omit<TrackOutDial
                       aria-invalid={!!error || undefined}
                       className="min-h-12 w-32 text-base"
                       value={values[input.lotId] ?? ''}
+                      readOnly={fixed}
                       onChange={(event) => setValues((current) => ({ ...current, [input.lotId]: event.target.value }))}
                     />
                     <span className="w-8 text-sm text-muted-foreground">{input.uom}</span>
@@ -80,6 +87,7 @@ function TrackOutForm({ run, submitting, onSubmit, onCancel }: Omit<TrackOutDial
                 </div>
                 <p className="text-sm text-muted-foreground">
                   Remaining {input.qty} {input.uom}
+                  {fixed && ' (used up in full)'}
                 </p>
                 {error && <p className="text-sm text-destructive">{error}</p>}
               </li>
