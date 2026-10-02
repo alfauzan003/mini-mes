@@ -1,0 +1,67 @@
+import { ClipboardList, Factory, LogOut, Package, Waypoints, type LucideIcon } from 'lucide-react'
+import { NavLink, Outlet } from 'react-router'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
+import type { Role } from '@/shared/api/types'
+import { useAuth } from '@/shared/auth/AuthContext'
+
+interface NavItem {
+  to: string
+  label: string
+  icon: LucideIcon
+  roles: Role[] | 'all'
+}
+
+const NAV_ITEMS: NavItem[] = [
+  { to: '/work-orders', label: 'Work Orders', icon: ClipboardList, roles: 'all' },
+  { to: '/station', label: 'Operator Station', icon: Factory, roles: ['OPERATOR', 'ADMIN'] },
+  { to: '/lots', label: 'WIP / Lots', icon: Waypoints, roles: 'all' },
+  { to: '/carriers', label: 'Carriers', icon: Package, roles: 'all' },
+]
+
+export function AppLayout() {
+  const { user, logout } = useAuth()
+  const items = NAV_ITEMS.filter((item) => item.roles === 'all' || (user && item.roles.includes(user.role)))
+
+  return (
+    <div className="flex min-h-screen bg-muted/30">
+      <aside className="w-56 shrink-0 border-r bg-card">
+        <div className="flex h-14 items-center border-b px-4 text-lg font-semibold">Mini MES</div>
+        <nav aria-label="Main" className="flex flex-col gap-1 p-2">
+          {items.map(({ to, label, icon: Icon }) => (
+            <NavLink
+              key={to}
+              to={to}
+              className={({ isActive }) =>
+                cn(
+                  'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground',
+                  isActive && 'bg-muted text-foreground',
+                )
+              }
+            >
+              <Icon className="size-4" />
+              {label}
+            </NavLink>
+          ))}
+        </nav>
+      </aside>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex h-14 items-center justify-end gap-3 border-b bg-card px-6">
+          {user && (
+            <div className="text-right text-sm leading-tight">
+              <div className="font-medium">{user.displayName}</div>
+              <div className="text-xs text-muted-foreground">{user.role}</div>
+            </div>
+          )}
+          <Button variant="outline" size="sm" onClick={logout}>
+            <LogOut />
+            Logout
+          </Button>
+        </header>
+        <main className="flex-1 p-6">
+          <Outlet />
+        </main>
+      </div>
+    </div>
+  )
+}
