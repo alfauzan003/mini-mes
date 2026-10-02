@@ -35,14 +35,16 @@ public sealed class ProduceOutputHandler(
 
     private async Task<Result<Guid>> ProduceAsync(Guid runId, IReadOnlyList<OutputLine> lines, CancellationToken ct)
     {
-        var run = await db.Set<ProductionRun>()
-            .Include(r => r.Inputs)
-            .Include(r => r.Outputs)
-            .SingleOrDefaultAsync(r => r.Id == runId, ct);
-        if (run is null)
+        // Lock first, load after: the run and its outputs must be read once any concurrent produce has committed.
+        if (!await db.AcquireAsync(runId, ct))
         {
             return new Error(ErrorCodes.RunNotFound, $"Run '{runId}' was not found.", ErrorKind.NotFound);
         }
+
+        var run = await db.Set<ProductionRun>()
+            .Include(r => r.Inputs)
+            .Include(r => r.Outputs)
+            .SingleAsync(r => r.Id == runId, ct);
 
         if (!run.IsOpen)
         {

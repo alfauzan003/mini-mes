@@ -23,9 +23,9 @@ public static class CalOutput
         }
 
         var line = lines[0];
-        if (ProduceContext.NormalizeCarrierCode(line.CarrierCode) is null)
+        if (ProduceContext.NormalizeCarrierCode(line.CarrierCode) is null || line.Lane is not null)
         {
-            return ProduceContext.InvalidSet(OperationCode.Cal, "the roll needs the bobbin it moves to");
+            return ProduceContext.InvalidSet(OperationCode.Cal, "the roll needs the bobbin it moves to and has no lane");
         }
 
         if (line.GoodQty <= 0)

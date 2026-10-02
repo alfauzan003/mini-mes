@@ -107,6 +107,48 @@ public class ProduceOutputTests(MesApiFactory api) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Concurrent_double_submit_on_mix_creates_exactly_one_slurry_lot()
+    {
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            await api.ResetDatabaseAsync();
+            _driver = new ProductionDriver(api);
+            var wo = await _driver.CreateReleasedWorkOrderAsync();
+            var run = await _driver.TrackInOkAsync(
+                "MX01", wo, OperationCode.Mix, await _driver.MaterialLotsAsync(CathodeMix));
+
+            var responses = await Task.WhenAll(
+                _driver.ProduceAsync(run.Id, new OutputLine(null, null, 480m, 20m)),
+                _driver.ProduceAsync(run.Id, new OutputLine(null, null, 480m, 20m)));
+
+            Assert.Single(responses, r => r.StatusCode == System.Net.HttpStatusCode.OK);
+            await ProductionDriver.AssertErrorAsync(
+                responses.Single(r => r.StatusCode != System.Net.HttpStatusCode.OK), 422, "INVALID_OUTPUT_SET");
+            Assert.Equal(1, await CountLotsAsync("type=SLURRY"));
+        }
+    }
+
+    [Fact]
+    public async Task Concurrent_double_submit_on_slit_with_different_cores_is_one_grid()
+    {
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            await api.ResetDatabaseAsync();
+            _driver = new ProductionDriver(api);
+            var (wo, _) = await CalenderedRollAsync();
+            var run = await _driver.TrackInOkAsync("SL01", wo, OperationCode.Slit, "BB-0004");
+            var second = Grid().Select(l => l with { CarrierCode = l.CarrierCode!.Replace("PC-00", "PC-01") }).ToArray();
+
+            var responses = await Task.WhenAll(_driver.ProduceAsync(run.Id, Grid()), _driver.ProduceAsync(run.Id, second));
+
+            Assert.Single(responses, r => r.StatusCode == System.Net.HttpStatusCode.OK);
+            await ProductionDriver.AssertErrorAsync(
+                responses.Single(r => r.StatusCode != System.Net.HttpStatusCode.OK), 422, "INVALID_OUTPUT_SET");
+            Assert.Equal(8, await CountLotsAsync("type=PANCAKE"));
+        }
+    }
+
+    [Fact]
     public async Task Negative_reject_is_invalid_quantity()
     {
         var wo = await _driver.CreateReleasedWorkOrderAsync();
@@ -278,6 +320,8 @@ public class ProduceOutputTests(MesApiFactory api) : IAsyncLifetime
             await _driver.ProduceAsync(run.Id, new OutputLine(null, null, 1180m, 20m)), 422, "INVALID_OUTPUT_SET");
         await ProductionDriver.AssertErrorAsync(
             await _driver.ProduceAsync(run.Id, OnBobbin("BB-0004", 0m, 20m)), 422, "INVALID_OUTPUT_SET");
+        await ProductionDriver.AssertErrorAsync(
+            await _driver.ProduceAsync(run.Id, new OutputLine("BB-0004", 1, 1180m, 20m)), 422, "INVALID_OUTPUT_SET");
         await ProductionDriver.AssertErrorAsync(
             await _driver.ProduceAsync(run.Id, OnBobbin("BB-0004"), OnBobbin("BB-0005")), 422, "INVALID_OUTPUT_SET");
         await _driver.ProduceOkAsync(run.Id, OnBobbin("BB-0004", 1180m, 20m));

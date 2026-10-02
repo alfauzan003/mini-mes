@@ -89,6 +89,11 @@ public static class SlitOutput
         }
 
         var laneCount = ctx.Equipment.LaneCount ?? 0;
+        if (laneCount <= 0)
+        {
+            return ProduceContext.InvalidSet(OperationCode.Slit, $"equipment {ctx.Equipment.Code} has no lanes");
+        }
+
         if (lines.Count != laneCount)
         {
             return ProduceContext.InvalidSet(OperationCode.Slit, $"expected one line for each of the {laneCount} lanes");
