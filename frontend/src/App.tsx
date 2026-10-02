@@ -1,5 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router'
 import { LoginPage } from '@/features/auth/LoginPage'
+import { WorkOrderDetailPage } from '@/features/work-orders/WorkOrderDetailPage'
+import { WorkOrderListPage } from '@/features/work-orders/WorkOrderListPage'
 import { useAuth } from '@/shared/auth/AuthContext'
 import { RequireAuth, RequireRole } from '@/shared/auth/RequireRole'
 import { AppLayout } from '@/shared/layout/AppLayout'
@@ -17,8 +19,8 @@ export function App() {
       <Route element={<RequireAuth />}>
         <Route element={<AppLayout />}>
           <Route index element={<HomeRedirect />} />
-          <Route path="work-orders" element={<PlaceholderPage title="Work Orders" />} />
-          <Route path="work-orders/:id" element={<PlaceholderPage title="Work Order" />} />
+          <Route path="work-orders" element={<WorkOrderListPage />} />
+          <Route path="work-orders/:id" element={<WorkOrderDetailPage />} />
           <Route
             path="station"
             element={
