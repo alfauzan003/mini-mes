@@ -122,6 +122,37 @@ public class InspectionTests
     }
 
     [Fact]
+    public void Value_on_the_lsl_is_pass()
+    {
+        var result = Record([(_loading.Id, 19.5m), (_thickness.Id, 105m)]);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(InspectionResult.Pass, result.Value.Result);
+    }
+
+    [Theory]
+    [InlineData(99_999_999.999, true)]
+    [InlineData(-99_999_999.999, true)]
+    [InlineData(100_000_000, false)]
+    [InlineData(-100_000_000, false)]
+    [InlineData(999_999_999.999, false)]
+    public void Value_must_fit_the_measurement_column(double value, bool fits)
+    {
+        var wide = TestData.CathodeSpec(OperationCode.Coat, "Wide", "u", -999_999_999m, 999_999_999m, 4);
+
+        var result = Record([(wide.Id, (decimal)value)], specs: [wide]);
+
+        if (fits)
+        {
+            Assert.True(result.IsSuccess);
+        }
+        else
+        {
+            Assert.Equal(ErrorCodes.InvalidQuantity, result.Error!.Code);
+        }
+    }
+
+    [Fact]
     public void No_specs_is_no_inspection_spec() =>
         Assert.Equal(ErrorCodes.NoInspectionSpec, Record([], specs: []).Error!.Code);
 

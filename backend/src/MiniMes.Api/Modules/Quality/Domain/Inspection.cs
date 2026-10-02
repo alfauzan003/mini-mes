@@ -10,6 +10,9 @@ namespace MiniMes.Api.Modules.Quality.Domain;
 /// <summary>One quality inspection of a lot. Recording it does not touch the lot; the caller applies the outcome.</summary>
 public class Inspection
 {
+    /// <summary>Largest magnitude a numeric(12,4) measurement column can hold.</summary>
+    internal const decimal MaxMeasuredValue = 99_999_999.9999m;
+
     private readonly List<InspectionMeasurement> _measurements = [];
 
     private Inspection()
@@ -138,7 +141,7 @@ public class Inspection
                 return error;
             }
 
-            if (value < -QuantityRules.Max)
+            if (Math.Abs(value) > MaxMeasuredValue)
             {
                 return new Error(ErrorCodes.InvalidQuantity, "A measured value is out of range.");
             }
