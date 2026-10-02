@@ -1,5 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using MiniMes.Api.Modules.Carriers;
+using MiniMes.Api.Modules.Equipment;
 using MiniMes.Api.Modules.Identity;
+using MiniMes.Api.Modules.Lots;
+using MiniMes.Api.Modules.WorkOrders;
 using MiniMes.Api.Shared.Data;
 using MiniMes.Api.Shared.Data.Seed;
 using MiniMes.Api.Shared.Http;
@@ -27,7 +31,7 @@ app.UseAuthorization();
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.MapOpenApi().AllowAnonymous();
 }
 
 app.MapGet("/api/health", async (MesDbContext db, CancellationToken ct) =>
@@ -35,9 +39,17 @@ app.MapGet("/api/health", async (MesDbContext db, CancellationToken ct) =>
     {
         status = "ok",
         database = await db.Database.CanConnectAsync(ct) ? "up" : "down"
-    }));
+    })).AllowAnonymous();
 
 app.MapIdentityEndpoints(app.Configuration.GetValue<bool>("Demo:EnableQuickLogin"));
+app.MapWorkOrdersEndpoints();
+app.MapLotsEndpoints();
+app.MapEquipmentEndpoints();
+app.MapCarriersEndpoints();
+
+// The authorization fallback policy also guards requests that match no route, which would answer
+// 401 instead of 404. An anonymous catch-all keeps unknown and unmapped paths at 404.
+app.MapFallback(() => Results.NotFound()).AllowAnonymous();
 
 await app.InitializeDatabaseAsync();
 

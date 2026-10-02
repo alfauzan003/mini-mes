@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using MiniMes.Api.Modules.Identity.Features.DemoLogin;
@@ -39,7 +40,12 @@ public static class IdentityModule
                 };
             });
 
-        services.AddAuthorization(options => options.AddMesPolicies());
+        services.AddAuthorization(options =>
+        {
+            options.AddMesPolicies();
+            // Every endpoint requires a signed-in user unless it opts out with AllowAnonymous.
+            options.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
+        });
         return services;
     }
 
