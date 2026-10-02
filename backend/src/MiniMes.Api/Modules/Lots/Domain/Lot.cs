@@ -1,3 +1,4 @@
+using MiniMes.Api.Modules.Quality.Domain;
 using MiniMes.Api.Modules.WorkOrders.Domain;
 using MiniMes.Api.Shared.Results;
 
@@ -26,6 +27,11 @@ public class Lot
     public Guid? CurrentCarrierId { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public uint Version { get; private set; }
+
+    /// <summary>True when no further operation follows on the route.</summary>
+    public bool IsFinal => NextOperation is null;
+
+    public bool CanBeInspected => Status == LotStatus.Wait && Quality == QualityStatus.None;
 
     /// <summary>Receives incoming material: waiting, already passed incoming quality, headed for MIX (RAW) or COAT (FOIL).</summary>
     public static Lot RegisterMaterial(string lotId, Material material, decimal qty, DateTimeOffset now) => new()
@@ -144,6 +150,67 @@ public class Lot
         }
 
         Status = LotStatus.Finished;
+        return Result.Success();
+    }
+
+    /// <summary>Pass keeps the lot waiting with quality PASS; fail holds it with quality FAIL.</summary>
+    public Result ApplyInspection(InspectionResult result)
+    {
+        if (!CanBeInspected)
+        {
+            return NotAvailable();
+        }
+
+        if (result == InspectionResult.Pass)
+        {
+            Quality = QualityStatus.Pass;
+        }
+        else
+        {
+            Quality = QualityStatus.Fail;
+            Status = LotStatus.Hold;
+        }
+
+        return Result.Success();
+    }
+
+    public Result Hold()
+    {
+        if (Status != LotStatus.Wait)
+        {
+            return NotAvailable();
+        }
+
+        Status = LotStatus.Hold;
+        return Result.Success();
+    }
+
+    /// <summary>Releasing a lot held for failing inspection accepts it: its quality becomes PASS.</summary>
+    public Result Release()
+    {
+        if (Status != LotStatus.Hold)
+        {
+            return NotAvailable();
+        }
+
+        Status = LotStatus.Wait;
+        if (Quality == QualityStatus.Fail)
+        {
+            Quality = QualityStatus.Pass;
+        }
+
+        return Result.Success();
+    }
+
+    public Result Scrap()
+    {
+        if (Status != LotStatus.Hold)
+        {
+            return NotAvailable();
+        }
+
+        Status = LotStatus.Scrapped;
+        CurrentCarrierId = null;
         return Result.Success();
     }
 

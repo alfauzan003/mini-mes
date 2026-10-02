@@ -25,6 +25,12 @@ public static class ErrorCodes
     public const string LotSequenceExhausted = "LOT_SEQUENCE_EXHAUSTED";
     public const string ConcurrencyConflict = "CONCURRENCY_CONFLICT";
     public const string AuthInvalidCredentials = "AUTH_INVALID_CREDENTIALS";
+    public const string NoInspectionSpec = "NO_INSPECTION_SPEC";
+    public const string InvalidMeasurements = "INVALID_MEASUREMENTS";
+    public const string DefectRequired = "DEFECT_REQUIRED";
+    public const string DefectCodeNotFound = "DEFECT_CODE_NOT_FOUND";
+    public const string ReasonRequired = "REASON_REQUIRED";
+    public const string InvalidSpecLimits = "INVALID_SPEC_LIMITS";
     public const string WoNotFound = "WO_NOT_FOUND";
     public const string LotNotFound = "LOT_NOT_FOUND";
     public const string CarrierNotFound = "CARRIER_NOT_FOUND";
@@ -32,4 +38,5 @@ public static class ErrorCodes
     public const string ProductNotFound = "PRODUCT_NOT_FOUND";
     public const string MaterialNotFound = "MATERIAL_NOT_FOUND";
     public const string RunNotFound = "RUN_NOT_FOUND";
+    public const string SpecNotFound = "SPEC_NOT_FOUND";
 }
