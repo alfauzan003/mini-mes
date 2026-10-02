@@ -2,9 +2,11 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Mvc.Testing;
 using MiniMes.Api.Modules.Carriers.Features.Queries;
 using MiniMes.Api.Modules.Equipment.Features.Queries;
 using MiniMes.Api.Modules.Execution;
+using MiniMes.Api.Modules.Execution.Features.TrackOut;
 using MiniMes.Api.Modules.Lots.Domain;
 using MiniMes.Api.Modules.Lots.Features.Queries;
 using MiniMes.Api.Modules.WorkOrders.Domain;
@@ -17,7 +19,7 @@ namespace MiniMes.IntegrationTests;
 /// story (create order, register material, track in) instead of repeating request plumbing. Create one per
 /// test, after the database has been reset.
 /// </summary>
-public sealed class ProductionDriver(MesApiFactory api)
+public sealed class ProductionDriver(WebApplicationFactory<Program> api)
 {
     private const decimal RawQty = 500m;
     private const decimal FoilQty = 6000m;
@@ -133,6 +135,21 @@ public sealed class ProductionDriver(MesApiFactory api)
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<RunDto>(Json, Ct))!;
     }
+
+    /// <summary>Ends the run; an input lot that is not listed is used up entirely.</summary>
+    public async Task<HttpResponseMessage> TrackOutAsync(Guid runId, params Consumption[] consumptions) =>
+        await (await OperatorAsync()).PostAsJsonAsync(
+            $"/api/runs/{runId}/track-out", new TrackOutRequest(consumptions), Json, Ct);
+
+    public async Task<RunDto> TrackOutOkAsync(Guid runId, params Consumption[] consumptions)
+    {
+        var response = await TrackOutAsync(runId, consumptions);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<RunDto>(Json, Ct))!;
+    }
+
+    public async Task<RunDto> RunAsync(Guid runId) =>
+        (await (await OperatorAsync()).GetFromJsonAsync<RunDto>($"/api/runs/{runId}", Json, Ct))!;
 
     public async Task<CarrierDto> CarrierAsync(string code) =>
         (await (await OperatorAsync()).GetFromJsonAsync<CarrierDto>($"/api/carriers/{code}", Json, Ct))!;

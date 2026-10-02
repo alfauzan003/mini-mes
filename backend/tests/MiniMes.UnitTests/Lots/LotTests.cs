@@ -199,4 +199,15 @@ public class LotTests
         Assert.Equal("note", ev.Note);
         Assert.Equal(Now, ev.OccurredAt);
     }
+
+    [Fact]
+    public void Recorded_event_can_override_the_operation()
+    {
+        var lot = Electrode();
+
+        var ev = LotEvent.Record(
+            lot, LotEventType.TrackOut, Guid.NewGuid(), Now, operation: OperationCode.Slit);
+
+        Assert.Equal(OperationCode.Slit, ev.Operation);
+    }
 }

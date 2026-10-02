@@ -36,18 +36,6 @@ public sealed class MesApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
         builder.UseSetting("Demo:EnableQuickLogin", "true");
     }
 
-    public async Task<HttpClient> ClientAsAsync(string username)
-    {
-        var client = CreateClient();
-        var response = await client.PostAsJsonAsync(
-            "/api/auth/login", new { username, password = "test-pass" }, TestContext.Current.CancellationToken);
-        response.EnsureSuccessStatusCode();
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
-        client.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", body.GetProperty("token").GetString());
-        return client;
-    }
-
     public async Task ResetDatabaseAsync()
     {
         await using var scope = Services.CreateAsyncScope();
@@ -72,5 +60,24 @@ public sealed class MesApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
         }
 
         await scope.ServiceProvider.GetRequiredService<DemoSeeder>().SeedAsync(CancellationToken.None);
+    }
+}
+
+public static class ApiFactoryExtensions
+{
+    /// <summary>
+    /// A client logged in as a seeded user. An extension on the base factory so it also works on the
+    /// derived factory <c>WithWebHostBuilder</c> returns.
+    /// </summary>
+    public static async Task<HttpClient> ClientAsAsync(this WebApplicationFactory<Program> factory, string username)
+    {
+        var client = factory.CreateClient();
+        var response = await client.PostAsJsonAsync(
+            "/api/auth/login", new { username, password = "test-pass" }, TestContext.Current.CancellationToken);
+        response.EnsureSuccessStatusCode();
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", body.GetProperty("token").GetString());
+        return client;
     }
 }

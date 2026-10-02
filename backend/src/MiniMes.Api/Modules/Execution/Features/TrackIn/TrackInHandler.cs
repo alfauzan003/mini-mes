@@ -110,7 +110,9 @@ public sealed class TrackInHandler(
             }
 
             db.Set<LotEvent>().Add(
-                LotEvent.Record(lot, LotEventType.TrackIn, user.UserId, now, runId: run.Id, qty: lot.Qty));
+                LotEvent.Record(
+                    lot, LotEventType.TrackIn, user.UserId, now, runId: run.Id, qty: lot.Qty,
+                    operation: step.Operation));
         }
 
         var runStarted = equipment.StartRun(run.Id);

@@ -17,4 +17,7 @@ public sealed record WorkOrderDto(
     IReadOnlyList<WorkOrderOperationDto> Operations);
 
 /// <param name="EquipmentCode">Equipment assigned to this step.</param>
-public sealed record WorkOrderOperationDto(Guid Id, OperationCode Operation, int Seq, string EquipmentCode);
+/// <param name="RunCount">Runs of this step, open or ended.</param>
+/// <param name="OutputQty">Sum of the good quantity of this step's ended runs.</param>
+public sealed record WorkOrderOperationDto(
+    Guid Id, OperationCode Operation, int Seq, string EquipmentCode, int RunCount, decimal OutputQty);

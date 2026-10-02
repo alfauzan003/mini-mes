@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using MiniMes.Api.Modules.Execution.Domain;
 using MiniMes.Api.Modules.WorkOrders.Domain;
 using MiniMes.Api.Shared.Data;
 using EquipmentEntity = MiniMes.Api.Modules.Equipment.Domain.Equipment;
@@ -40,12 +41,21 @@ public sealed class WorkOrderQueries(MesDbContext db)
         }
 
         var ids = headers.Select(h => h.Order.Id).ToArray();
+        var runs = db.Set<ProductionRun>().AsNoTracking();
         var operations = await (
             from o in db.Set<WorkOrderOperation>().AsNoTracking()
             where ids.Contains(o.WorkOrderId)
             join e in db.Set<EquipmentEntity>() on o.EquipmentId equals e.Id
             orderby o.Seq
-            select new { o.WorkOrderId, Dto = new WorkOrderOperationDto(o.Id, o.Operation, o.Seq, e.Code) })
+            select new
+            {
+                o.WorkOrderId,
+                Dto = new WorkOrderOperationDto(
+                    o.Id, o.Operation, o.Seq, e.Code,
+                    runs.Count(r => r.WorkOrderOperationId == o.Id),
+                    runs.Where(r => r.WorkOrderOperationId == o.Id && r.EndedAt != null)
+                        .Sum(r => (decimal?)r.GoodQty) ?? 0m)
+            })
             .ToListAsync(ct);
         var byOrder = operations.ToLookup(o => o.WorkOrderId, o => o.Dto);
 

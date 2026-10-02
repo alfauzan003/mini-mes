@@ -76,6 +76,7 @@ public class TrackInTests(MesApiFactory api) : IAsyncLifetime
             var events = await client.GetFromJsonAsync<JsonElement>($"/api/lots/{lotId}/events", Ct);
             var trackIn = events.EnumerateArray().Last();
             Assert.Equal("TRACK_IN", trackIn.GetProperty("type").GetString());
+            Assert.Equal("MIX", trackIn.GetProperty("operation").GetString());
             Assert.Equal("operator", trackIn.GetProperty("user").GetString());
             Assert.Equal("MX01", trackIn.GetProperty("equipment").GetString());
             Assert.Equal(run.Id, trackIn.GetProperty("runId").GetGuid());

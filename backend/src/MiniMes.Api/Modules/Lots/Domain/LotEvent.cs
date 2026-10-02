@@ -21,14 +21,18 @@ public class LotEvent
     public string? Note { get; private set; }
     public DateTimeOffset OccurredAt { get; private set; }
 
-    /// <summary>Captures the current operation, equipment and carrier of the lot alongside the event.</summary>
+    /// <summary>
+    /// Captures the current operation, equipment and carrier of the lot alongside the event.
+    /// <paramref name="operation"/> overrides the operation for events that belong to a step other than the one
+    /// that produced the lot (track-in and track-out record the step being run).
+    /// </summary>
     public static LotEvent Record(
         Lot lot, LotEventType type, Guid userId, DateTimeOffset at,
-        Guid? runId = null, decimal? qty = null, string? note = null) => new()
+        Guid? runId = null, decimal? qty = null, string? note = null, OperationCode? operation = null) => new()
     {
         LotId = lot.Id,
         Type = type,
-        Operation = lot.CurrentOperation,
+        Operation = operation ?? lot.CurrentOperation,
         EquipmentId = lot.CurrentEquipmentId,
         CarrierId = lot.CurrentCarrierId,
         RunId = runId,
