@@ -1,7 +1,6 @@
 using MiniMes.Api.Modules.Carriers.Domain;
 using MiniMes.Api.Modules.Equipment.Domain;
 using MiniMes.Api.Modules.Execution;
-using MiniMes.Api.Modules.Execution.Features.TrackOut;
 using MiniMes.Api.Modules.Lots.Domain;
 using MiniMes.Api.Modules.WorkOrders.Domain;
 
@@ -10,8 +9,6 @@ namespace MiniMes.IntegrationTests.Execution;
 [Collection("api")]
 public class FullFlowTests(MesApiFactory api) : IAsyncLifetime
 {
-    private static readonly string[] CathodeMix = ["NCM811", "PVDF", "SUPER-P", "NMP"];
-
     private ProductionDriver _driver = null!;
 
     public async ValueTask InitializeAsync()
@@ -25,33 +22,8 @@ public class FullFlowTests(MesApiFactory api) : IAsyncLifetime
     [Fact]
     public async Task Full_cathode_flow_completes_work_order()
     {
-        // Written as a plain sequence of driver calls so it can move into ProductionDriver.RunFullFlowAsync.
-        var wo = await _driver.CreateReleasedWorkOrderAsync(target: 8);
-        var raws = await _driver.MaterialLotsAsync(CathodeMix);
-        var foil = (await _driver.MaterialLotsAsync("AL-FOIL")).Single();
-
-        // MIX: 4 RAW lots become one slurry lot; 100 kg of each RAW lot is used.
-        var mix = await _driver.TrackInOkAsync("MX01", wo, OperationCode.Mix, raws);
-        var slurry = (await _driver.ProduceOkAsync(mix.Id, new OutputLine(null, null, 480m, 20m)))
-            .Outputs.Single().LotId!;
-        await _driver.TrackOutOkAsync(mix.Id, [.. raws.Select(raw => new Consumption(raw, 100m))]);
-
-        // COAT: foil and slurry become one roll on BB-0001; 1300 m of foil and all the slurry are used.
-        var coat = await _driver.TrackInOkAsync("CT01", wo, OperationCode.Coat, foil, slurry);
-        var roll = (await _driver.ProduceOkAsync(coat.Id, new OutputLine("BB-0001", null, 1200m, 20m)))
-            .Outputs.Single().LotId!;
-        await _driver.TrackOutOkAsync(coat.Id, new Consumption(foil, 1300m));
-
-        // CAL: the same roll moves from BB-0001 to BB-0002.
-        var cal = await _driver.TrackInOkAsync("CP01", wo, OperationCode.Cal, "BB-0001");
-        await _driver.ProduceOkAsync(cal.Id, new OutputLine("BB-0002", null, 1180m, 20m));
-        await _driver.TrackOutOkAsync(cal.Id);
-
-        // SLIT: 8 lanes of 145 m on pancake cores PC-0001..8.
-        var slit = await _driver.TrackInOkAsync("SL01", wo, OperationCode.Slit, "BB-0002");
-        await _driver.ProduceOkAsync(
-            slit.Id, [.. Enumerable.Range(1, 8).Select(lane => new OutputLine($"PC-{lane:0000}", lane, 145m, 2m))]);
-        await _driver.TrackOutOkAsync(slit.Id);
+        var flow = await _driver.RunFullFlowAsync(target: 8);
+        var (wo, raws, foil, slurry, roll) = (flow.WorkOrder, flow.Raws, flow.Foil, flow.Slurry, flow.Electrode);
 
         var order = await _driver.WorkOrderAsync(wo);
         Assert.Equal(WorkOrderStatus.Completed, order.Status);

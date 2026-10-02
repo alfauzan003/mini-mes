@@ -14,6 +14,14 @@ using MiniMes.Api.Modules.WorkOrders.Features.Queries;
 
 namespace MiniMes.IntegrationTests;
 
+/// <summary>The work order and the lots a full cathode flow left behind.</summary>
+/// <param name="Raws">The four RAW lots mixed into the slurry.</param>
+/// <param name="Electrode">The coated roll, which keeps its lot ID through calendering.</param>
+/// <param name="Pancakes">One lot per slitting lane.</param>
+public sealed record FullFlow(
+    WorkOrderDto WorkOrder, string[] Raws, string Foil, string Slurry, string Electrode, string[] Pancakes,
+    Guid SlitRunId);
+
 /// <summary>
 /// Drives the production flow through the HTTP API as the planner and operator users, so tests read as a
 /// story (create order, register material, track in) instead of repeating request plumbing. Create one per
@@ -103,6 +111,43 @@ public sealed class ProductionDriver(WebApplicationFactory<Program> api)
         }
 
         return [.. lotIds];
+    }
+
+    /// <summary>
+    /// Runs a fresh order through MIX, COAT, CAL and SLIT with a track-out after each, slitting the roll into
+    /// <paramref name="target"/> lanes (use 8 or fewer, the slitter's width). Mixing uses 100 kg of each RAW lot
+    /// and coating 1300 m of foil, so those lots go back to WAIT with 400 kg and 4700 m left.
+    /// </summary>
+    public async Task<FullFlow> RunFullFlowAsync(int target)
+    {
+        var wo = await CreateReleasedWorkOrderAsync(target: target);
+        var raws = await MaterialLotsAsync("NCM811", "PVDF", "SUPER-P", "NMP");
+        var foil = (await MaterialLotsAsync("AL-FOIL")).Single();
+
+        // MIX: 4 RAW lots become one slurry lot.
+        var mix = await TrackInOkAsync("MX01", wo, OperationCode.Mix, raws);
+        var slurry = (await ProduceOkAsync(mix.Id, new OutputLine(null, null, 480m, 20m))).Outputs.Single().LotId!;
+        await TrackOutOkAsync(mix.Id, [.. raws.Select(raw => new Consumption(raw, 100m))]);
+
+        // COAT: foil and slurry become one roll on BB-0001; the slurry is used up.
+        var coat = await TrackInOkAsync("CT01", wo, OperationCode.Coat, foil, slurry);
+        var electrode = (await ProduceOkAsync(coat.Id, new OutputLine("BB-0001", null, 1200m, 20m)))
+            .Outputs.Single().LotId!;
+        await TrackOutOkAsync(coat.Id, new Consumption(foil, 1300m));
+
+        // CAL: the same roll moves from BB-0001 to BB-0002.
+        var cal = await TrackInOkAsync("CP01", wo, OperationCode.Cal, "BB-0001");
+        await ProduceOkAsync(cal.Id, new OutputLine("BB-0002", null, 1180m, 20m));
+        await TrackOutOkAsync(cal.Id);
+
+        // SLIT: one 145 m lane per good pancake on cores PC-0001...
+        var slit = await TrackInOkAsync("SL01", wo, OperationCode.Slit, "BB-0002");
+        var pancakes = (await ProduceOkAsync(
+                slit.Id, [.. Enumerable.Range(1, target).Select(lane => new OutputLine($"PC-{lane:0000}", lane, 145m, 2m))]))
+            .Outputs.Select(o => o.LotId!).ToArray();
+        await TrackOutOkAsync(slit.Id);
+
+        return new FullFlow(wo, raws, foil, slurry, electrode, pancakes, slit.Id);
     }
 
     public async Task<HttpResponseMessage> TrackInAsync(

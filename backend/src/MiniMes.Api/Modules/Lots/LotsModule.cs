@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using MiniMes.Api.Modules.Lots.Features.Genealogy;
 using MiniMes.Api.Modules.Lots.Features.Queries;
 using MiniMes.Api.Modules.Lots.Features.RegisterMaterial;
 using MiniMes.Api.Modules.Lots.LotIds;
@@ -18,6 +19,7 @@ public static class LotsModule
         services.AddScoped<PlantCalendar>();
         services.AddScoped<LotIdGenerator>();
         services.AddScoped<LotQueries>();
+        services.AddScoped<GenealogyQuery>();
         services.AddScoped<RegisterMaterialHandler>();
         return services;
     }
@@ -27,6 +29,7 @@ public static class LotsModule
         app.MapMaterials();
         app.MapRegisterMaterial();
         app.MapLotQueries();
+        app.MapGenealogy();
         return app;
     }
 }

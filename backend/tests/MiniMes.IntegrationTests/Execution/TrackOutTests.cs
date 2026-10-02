@@ -227,19 +227,8 @@ public class TrackOutTests(MesApiFactory api) : IAsyncLifetime
     [Fact]
     public async Task Using_up_a_roll_unloads_its_carrier_and_records_which_one()
     {
-        var (wo, foil, slurry) = await CoatStartedAsync();
-        var coat = await _driver.TrackInOkAsync("CT01", wo, OperationCode.Coat, foil, slurry);
-        var roll = (await _driver.ProduceOkAsync(coat.Id, new OutputLine("BB-0001", null, 1200m, 20m)))
-            .Outputs.Single().LotId!;
-        await _driver.TrackOutOkAsync(coat.Id);
-        var cal = await _driver.TrackInOkAsync("CP01", wo, OperationCode.Cal, "BB-0001");
-        await _driver.ProduceOkAsync(cal.Id, new OutputLine("BB-0002", null, 1180m, 20m));
-        await _driver.TrackOutOkAsync(cal.Id);
-        var slit = await _driver.TrackInOkAsync("SL01", wo, OperationCode.Slit, "BB-0002");
-        await _driver.ProduceOkAsync(
-            slit.Id, [.. Enumerable.Range(1, 8).Select(lane => new OutputLine($"PC-{lane:0000}", lane, 140m, 2m))]);
-
-        await _driver.TrackOutOkAsync(slit.Id);
+        var flow = await _driver.RunFullFlowAsync(target: 8);
+        var (roll, slitRunId) = (flow.Electrode, flow.SlitRunId);
 
         var lot = await _driver.LotAsync(roll);
         Assert.Equal(LotStatus.Consumed, lot.Status);
@@ -253,7 +242,7 @@ public class TrackOutTests(MesApiFactory api) : IAsyncLifetime
         Assert.Equal(["TRACK_OUT", "CARRIER_UNLOAD"], tail.Select(e => e.GetProperty("type").GetString()));
         Assert.Equal("SLIT", tail[0].GetProperty("operation").GetString());
         Assert.Equal("BB-0002", tail[1].GetProperty("carrier").GetString());
-        Assert.Equal(slit.Id, tail[1].GetProperty("runId").GetGuid());
+        Assert.Equal(slitRunId, tail[1].GetProperty("runId").GetGuid());
         Assert.Equal(1180m, tail[0].GetProperty("qty").GetDecimal());
     }
 

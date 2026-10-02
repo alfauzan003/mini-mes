@@ -49,6 +49,6 @@ public static class LotEndpoints
         }).RequireAuthorization();
     }
 
-    private static Error LotNotFound(string lotId) =>
+    internal static Error LotNotFound(string lotId) =>
         new(ErrorCodes.LotNotFound, $"Lot '{lotId}' was not found.", ErrorKind.NotFound);
 }
