@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using MiniMes.Api.Modules.Carriers;
 using MiniMes.Api.Modules.Equipment;
+using MiniMes.Api.Modules.Execution;
 using MiniMes.Api.Modules.Identity;
 using MiniMes.Api.Modules.Lots;
 using MiniMes.Api.Modules.WorkOrders;
@@ -24,6 +25,7 @@ builder.Services.AddScoped<DemoSeeder>();
 builder.Services.AddIdentityModule();
 builder.Services.AddLotsModule();
 builder.Services.AddWorkOrdersModule();
+builder.Services.AddExecutionModule();
 
 var app = builder.Build();
 
@@ -48,6 +50,7 @@ app.MapWorkOrdersEndpoints();
 app.MapLotsEndpoints();
 app.MapEquipmentEndpoints();
 app.MapCarriersEndpoints();
+app.MapExecutionEndpoints();
 
 // The authorization fallback policy also guards requests that match no route, which would answer
 // 401 instead of 404. An anonymous catch-all keeps unknown and unmapped paths at 404.

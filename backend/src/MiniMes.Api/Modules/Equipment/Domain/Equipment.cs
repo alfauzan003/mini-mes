@@ -27,11 +27,18 @@ public class Equipment
     public Guid? CurrentRunId { get; private set; }
     public uint Version { get; private set; }
 
+    /// <summary>A run can start only on an IDLE machine that has no open run.</summary>
+    public Result EnsureCanStartRun() =>
+        Status == EquipmentStatus.Idle && CurrentRunId is null
+            ? Result.Success()
+            : new Error(ErrorCodes.EquipmentNotAvailable, $"Equipment {Code} is {Status} and cannot start a run.");
+
     public Result StartRun(Guid runId)
     {
-        if (Status != EquipmentStatus.Idle || CurrentRunId is not null)
+        var available = EnsureCanStartRun();
+        if (!available.IsSuccess)
         {
-            return new Error(ErrorCodes.EquipmentNotAvailable, $"Equipment {Code} is {Status} and cannot start a run.");
+            return available;
         }
 
         Status = EquipmentStatus.Running;
