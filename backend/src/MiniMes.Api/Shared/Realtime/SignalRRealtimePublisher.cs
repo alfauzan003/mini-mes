@@ -24,7 +24,7 @@ public sealed class SignalRRealtimePublisher(
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
-                logger.LogDebug("Publishing stopped: the request was cancelled");
+                logger.LogDebug("Publishing stopped: the caller cancelled it");
                 return;
             }
             catch (Exception ex)

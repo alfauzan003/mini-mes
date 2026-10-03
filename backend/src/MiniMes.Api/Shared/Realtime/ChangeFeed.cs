@@ -70,7 +70,10 @@ public sealed class ChangeFeed(IRealtimePublisher publisher, ILogger<ChangeFeed>
         return changes;
     }
 
-    /// <summary>Publishes the captured changes; call only after commit. Never throws, as the work is already saved.</summary>
+    /// <summary>
+    /// Publishes the captured changes; call only after commit, with a token that is not the request's, since the
+    /// work is already saved. Never throws.
+    /// </summary>
     public async Task PublishAsync(PendingChanges changes, MesDbContext db, CancellationToken ct)
     {
         if (changes.IsEmpty)
@@ -95,10 +98,6 @@ public sealed class ChangeFeed(IRealtimePublisher publisher, ILogger<ChangeFeed>
             }
 
             await publisher.PublishAsync(events, ct);
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-            logger.LogDebug("Publishing committed changes stopped: the request was cancelled");
         }
         catch (Exception ex)
         {

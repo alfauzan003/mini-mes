@@ -1,14 +1,22 @@
+using System.Data.Common;
 using System.Net;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging.Abstractions;
 using MiniMes.Api.Modules.Alarms;
 using MiniMes.Api.Modules.Alarms.Features.Queries;
 using MiniMes.Api.Modules.Equipment.Domain;
 using MiniMes.Api.Modules.Lots.Domain;
 using MiniMes.Api.Modules.WorkOrders.Domain;
+using MiniMes.Api.Shared.Data;
 using MiniMes.Api.Shared.Realtime;
+using MiniMes.Api.Shared.Results;
+using EquipmentEntity = MiniMes.Api.Modules.Equipment.Domain.Equipment;
 
 namespace MiniMes.IntegrationTests.Realtime;
 
@@ -141,6 +149,42 @@ public class ChangeFeedTests(MesApiFactory api) : IAsyncLifetime
         await driver.TrackInOkAsync("MX01", wo, OperationCode.Mix, raws);
 
         Assert.Equal(EquipmentStatus.Running, (await driver.EquipmentAsync("MX01")).Status);
+    }
+
+    [Fact]
+    public async Task Committed_change_is_published_even_if_the_request_is_cancelled_after_commit()
+    {
+        using var request = new CancellationTokenSource();
+        var options = new DbContextOptionsBuilder<MesDbContext>()
+            .UseNpgsql(_factory.Services.GetRequiredService<IConfiguration>().GetConnectionString("Mes"))
+            .UseSnakeCaseNamingConvention()
+            .AddInterceptors(new CancelAfterCommit(request))
+            .Options;
+        await using var db = new MesDbContext(
+            options, TimeProvider.System, new ChangeFeed(_published, NullLogger<ChangeFeed>.Instance));
+
+        var result = await db.ExecuteInTransactionAsync(async token =>
+        {
+            var equipment = await db.Set<EquipmentEntity>().SingleAsync(e => e.Code == "MX01", token);
+            return equipment.StartMaintenance();
+        }, request.Token);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(request.IsCancellationRequested);
+        Assert.Equal(
+            [new EquipmentStatusEvent("MX01", EquipmentStatus.Maintenance)],
+            _published.Payloads<EquipmentStatusEvent>(RealtimeMethods.EquipmentStatusChanged));
+    }
+
+    /// <summary>Simulates the caller aborting the request in the gap between commit and publish.</summary>
+    private sealed class CancelAfterCommit(CancellationTokenSource request) : DbTransactionInterceptor
+    {
+        public override Task TransactionCommittedAsync(
+            DbTransaction transaction, TransactionEndEventData eventData, CancellationToken cancellationToken = default)
+        {
+            request.Cancel();
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class ThrowingPublisher : IRealtimePublisher

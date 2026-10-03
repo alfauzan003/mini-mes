@@ -30,8 +30,10 @@ public sealed class RecordingRealtimePublisher : IRealtimePublisher
         }
     }
 
+    /// <summary>Honours the token like a real transport would, so a cancelled publish records nothing.</summary>
     public Task PublishAsync(IReadOnlyList<RealtimeEvent> events, CancellationToken ct)
     {
+        ct.ThrowIfCancellationRequested();
         lock (_gate)
         {
             _events.AddRange(events);

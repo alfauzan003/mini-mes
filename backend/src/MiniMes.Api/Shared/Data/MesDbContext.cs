@@ -82,7 +82,9 @@ public class MesDbContext(
 
         if (pending is not null)
         {
-            await changeFeed!.PublishAsync(pending, this, ct);
+            // Not the request token: the change is committed, so clients must hear about it even if the caller
+            // has gone away in the meantime.
+            await changeFeed!.PublishAsync(pending, this, CancellationToken.None);
         }
 
         return null;
