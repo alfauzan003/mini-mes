@@ -9,6 +9,7 @@ import {
   pancakesOf,
   registerMaterial,
   runOperation,
+  storedReadingsInLimits,
   token,
   workOrder,
 } from './api.ts'
@@ -17,7 +18,10 @@ import {
 // images. Everything this run touches (work order, lots, carriers) is created or looked up by the run itself, so
 // it passes again on a database that already holds earlier runs.
 
-const SHOT = (name: string) => path.join(import.meta.dirname, '../../docs/screenshots', name)
+// The README images are rewritten only on request (UPDATE_SCREENSHOTS=1); otherwise the shots go to the ignored
+// test-results folder, so a plain run leaves the working tree clean.
+const SHOT_DIR = process.env.UPDATE_SCREENSHOTS === '1' ? '../../docs/screenshots' : '../test-results/screenshots'
+const SHOT = (name: string) => path.join(import.meta.dirname, SHOT_DIR, name)
 
 type DemoRole = 'Planner' | 'Operator' | 'QC' | 'Admin'
 
@@ -69,7 +73,7 @@ function localInput(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
-test('five-minute demo', async ({ page, request }) => {
+test('demo walkthrough', async ({ page, request }) => {
   const admin = await token(request, 'admin')
   // A rerun may start while CT01 is still DOWN from the previous run's injected fault; it recovers by itself.
   for (const code of ['MX01', 'CT01', 'CP01', 'SL01']) await ensureIdle(request, admin, code)
@@ -83,13 +87,13 @@ test('five-minute demo', async ({ page, request }) => {
   await expect(main.getByText('No readings')).toHaveCount(0, { timeout: 60_000 })
   await snap(page, '01-dashboard.png')
 
-  // 2. Planner creates a work order for 8 cathode pancakes and releases it. (screenshot)
+  // 2. Planner creates a work order for 2 cathode pancakes and releases it. (screenshot)
   await nav(page, 'Work Orders').click()
   await page.getByRole('button', { name: 'New Work Order' }).click()
   const form = page.getByRole('dialog')
   const start = new Date()
   await form.getByLabel('Product', { exact: true }).selectOption('CATH-NCM811')
-  await form.getByLabel('Target quantity').fill('8')
+  await form.getByLabel('Target quantity').fill('2')
   await form.getByLabel('Planned start').fill(localInput(start))
   await form.getByLabel('Planned end').fill(localInput(new Date(start.getTime() + 24 * 3_600_000)))
   await form.getByLabel('Mixing').selectOption('MX01')
@@ -153,7 +157,8 @@ test('five-minute demo', async ({ page, request }) => {
   await expect(page).toHaveURL(/\/quality$/)
 
   // 6. Operator coats on CT01: scan the foil and the slurry, doff one 1000 m roll onto the first empty bobbin;
-  //    the station shows the open run and the coater's live parameters. (screenshot) Track out, 1020 m of foil used.
+  //    the station shows the open run and the coater's live parameters. (screenshot) The run stays open until the
+  //    trend has readings inside the limits, then tracks out with 1020 m of foil used.
   await ensureIdle(request, admin, 'CT01')
   await loginAs(page, 'Operator')
   await main.getByRole('link', { name: /^CT01\b/ }).click()
@@ -162,6 +167,7 @@ test('five-minute demo', async ({ page, request }) => {
     await scan.fill(lot)
     await scan.press('Enter')
   }
+  const coatStart = new Date()
   await page.getByRole('button', { name: 'Track in', exact: true }).click()
   const [bobbin] = await emptyCarriers(request, operator, 'BB', 1)
   await page.getByLabel('Empty carrier').fill(bobbin)
@@ -173,6 +179,10 @@ test('five-minute demo', async ({ page, request }) => {
   await expect(main.getByText('RUNNING', { exact: true }).first()).toBeVisible()
   await expect.poll(() => parametersSettled(page), { timeout: 90_000 }).toBe(true)
   await snap(page, '03-operator-station.png')
+  // Readings are stored at most every 10 s; keep coating until the trend (step 10) has some inside the limits.
+  await expect
+    .poll(() => storedReadingsInLimits(request, operator, 'CT01', coatStart), { timeout: 120_000, intervals: [2_000] })
+    .toBeGreaterThanOrEqual(3)
   await page.getByRole('button', { name: 'Track out', exact: true }).click()
   const trackOut = page.getByRole('dialog')
   await trackOut.getByLabel(`Consumed ${foil}`).fill('1020')
@@ -180,8 +190,9 @@ test('five-minute demo', async ({ page, request }) => {
   await expect(page.getByText('1. Choose the work order')).toBeVisible()
 
   // 7. The rest of the line through the API: QC passes the roll, Operator calenders it on CP01 (990 m onto an empty
-  //    bobbin), QC passes it, Operator slits it on SL01 into 8 pancakes of 120 m on empty cores. QC passes seven
-  //    pancakes and fails the eighth (burr above the limit), which puts it on HOLD.
+  //    bobbin), QC passes it, Operator slits it on SL01 into 2 pancakes of 120 m on empty cores (lanes 3 to 8 are
+  //    not needed: reject only, as the lane grid requires a quantity on every lane). QC passes pancake -01 and
+  //    fails -02 (burr above the limit), which puts it on HOLD.
   const qc = await token(request, 'qc')
   const wo = await workOrder(request, planner, workOrderId)
   const stepId = (operation: string) => wo.operations.find((o) => o.operation === operation)!.id
@@ -194,23 +205,19 @@ test('five-minute demo', async ({ page, request }) => {
     { carrierCode: calBobbin, lane: null, goodQty: 990, rejectQty: 10 },
   ])
   await inspectPass(request, qc, electrode)
-  const cores = await emptyCarriers(request, operator, 'PC', 8)
-  await runOperation(
-    request,
-    operator,
-    'SL01',
-    stepId('SLIT'),
-    [electrode],
-    cores.map((core, index) => ({ carrierCode: core, lane: index + 1, goodQty: 120, rejectQty: 0 })),
-  )
+  const cores = await emptyCarriers(request, operator, 'PC', 2)
+  await runOperation(request, operator, 'SL01', stepId('SLIT'), [electrode], [
+    ...cores.map((core, index) => ({ carrierCode: core, lane: index + 1, goodQty: 120, rejectQty: 0 })),
+    ...[3, 4, 5, 6, 7, 8].map((lane) => ({ carrierCode: null, lane, goodQty: 0, rejectQty: 120 })),
+  ])
   const pancakes = await pancakesOf(request, operator, woNumber)
-  expect(pancakes).toHaveLength(8)
-  for (const pancake of pancakes.slice(0, 7)) await inspectPass(request, qc, pancake)
-  const failed = pancakes[7]
-  await inspectFail(request, qc, failed)
+  expect(pancakes).toHaveLength(2)
+  await inspectPass(request, qc, pancakes[0])
+  const failed = pancakes[1]
+  expect(await inspectFail(request, qc, failed, 'Burr height')).toBe('SL-BURR')
 
   //    QC releases the failed pancake with a reason (Quality, On hold, Disposition): it finishes and counts as good,
-  //    so the work order completes at 8 / 8.
+  //    so the work order completes at 2 / 2.
   await loginAs(page, 'QC')
   await page.getByRole('tab', { name: 'On hold' }).click()
   await page.getByRole('row', { name: new RegExp(failed) }).getByRole('button', { name: 'Disposition' }).click()
@@ -225,7 +232,7 @@ test('five-minute demo', async ({ page, request }) => {
   await expect(page).toHaveURL(new RegExp(`/work-orders/${workOrderId}$`))
   await expect(title).toHaveText(woNumber)
   await expect(main.getByText('COMPLETED', { exact: true })).toBeVisible()
-  await expect(main.getByText('8 / 8', { exact: true })).toBeVisible()
+  await expect(main.getByText('2 / 2', { exact: true })).toBeVisible()
 
   // 8. Trace a pancake back to its materials: lot detail, Genealogy tab, Backward. (screenshot)
   await main.getByRole('link', { name: pancakes[0], exact: true }).click()

@@ -117,13 +117,14 @@ export async function inspectPass(request: APIRequestContext, token: string, lot
 }
 
 /**
- * Records a failing inspection: the last spec item is measured above its upper limit, the rest at their midpoint.
+ * Records a failing inspection: the named spec item is measured above its upper limit, the rest at their midpoint.
  * The defect code is one that applies to the lot's operation, preferably the one named after the failed item.
  * The lot goes to HOLD. Returns the defect code used.
  */
-export async function inspectFail(request: APIRequestContext, token: string, lotId: string): Promise<string> {
+export async function inspectFail(request: APIRequestContext, token: string, lotId: string, itemName: string): Promise<string> {
   const { lot, specs } = await specsFor(request, token, lotId)
-  const failed = specs[specs.length - 1]
+  const failed = specs.find((spec) => spec.itemName === itemName)
+  if (!failed) throw new Error(`The ${lot.currentOperation} spec of ${lotId} has no item "${itemName}".`)
   const measurements = specs.map((spec) => ({
     specId: spec.id,
     value: spec === failed ? round4(spec.usl + (spec.usl - spec.lsl) / 4) : midpoint(spec),
@@ -142,6 +143,28 @@ export async function inspectFail(request: APIRequestContext, token: string, lot
     rejectQty: null,
   })
   return defect.code
+}
+
+interface ParameterSeriesDto {
+  parameter: string
+  low: number
+  high: number
+  points: { at: string; value: number }[]
+}
+
+/**
+ * The fewest stored readings inside their limits that any parameter of a machine has since `from`. Readings are
+ * stored at most every 10 s, so this tells when the trend chart will show the run inside its limits.
+ */
+export async function storedReadingsInLimits(request: APIRequestContext, token: string, code: string, from: Date): Promise<number> {
+  const series = await call<ParameterSeriesDto[]>(
+    request,
+    token,
+    'GET',
+    `/api/equipment/${code}/parameters?from=${encodeURIComponent(from.toISOString())}`,
+  )
+  if (series.length === 0) return 0
+  return Math.min(...series.map((s) => s.points.filter((p) => p.value >= s.low && p.value <= s.high).length))
 }
 
 interface OutputLine {

@@ -3,7 +3,7 @@ import { defineConfig, devices } from '@playwright/test'
 // Runs against the Docker Compose stack (`docker compose up --build -d`); it does not start a server itself.
 export default defineConfig({
   testDir: 'e2e',
-  timeout: 180_000,
+  timeout: 300_000,
   workers: 1,
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
