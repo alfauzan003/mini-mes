@@ -8,6 +8,9 @@ namespace MiniMes.Api.Shared.Realtime;
 public static class RealtimeMethods
 {
     public const string EquipmentStatusChanged = nameof(EquipmentStatusChanged);
+
+    /// <summary>The simulators' counterpart of <see cref="EquipmentStatusChanged"/>; sent as (code, status).</summary>
+    public const string EquipmentStateChanged = nameof(EquipmentStateChanged);
     public const string LotChanged = nameof(LotChanged);
     public const string WorkOrderProgressed = nameof(WorkOrderProgressed);
     public const string AlarmRaised = nameof(AlarmRaised);

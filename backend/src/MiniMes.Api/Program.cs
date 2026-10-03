@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using MiniMes.Api.Modules.Alarms;
 using MiniMes.Api.Modules.Carriers;
 using MiniMes.Api.Modules.Equipment;
+using MiniMes.Api.Modules.Equipment.Machine;
 using MiniMes.Api.Modules.Execution;
 using MiniMes.Api.Modules.Identity;
 using MiniMes.Api.Modules.Lots;
@@ -61,6 +62,7 @@ app.MapExecutionEndpoints();
 app.MapQualityEndpoints();
 app.MapAlarmsEndpoints();
 app.MapHub<ShopfloorHub>("/hubs/shopfloor");
+app.MapHub<MachineHub>("/hubs/machine");
 
 // The authorization fallback policy also guards requests that match no route, which would answer
 // 401 instead of 404. An anonymous catch-all keeps unknown and unmapped paths at 404.

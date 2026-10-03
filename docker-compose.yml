@@ -25,6 +25,7 @@ services:
     environment:
       ConnectionStrings__Mes: "${MES_CONNECTION_STRING:-Host=postgres;Port=5432;Database=mini_mes;Username=mes;Password=mes}"
       Jwt__Key: "${JWT_KEY:-demo-only-jwt-signing-key-change-me-0123456789}"
+      Machine__ApiKey: "${MACHINE_API_KEY:-demo-only-machine-key-change-me-0123}"
       Seed__DemoPassword: "${DEMO_PASSWORD:-demo-pass}"
       Demo__EnableQuickLogin: "true"
       Database__MigrateOnStartup: "true"

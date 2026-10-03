@@ -56,7 +56,12 @@ public class ChangeFeedTests(MesApiFactory api) : IAsyncLifetime
 
         await _driver.TrackInOkAsync("MX01", wo, OperationCode.Mix, raws);
 
-        Assert.All(_published.Events, e => Assert.Equal(RealtimeAudience.Shopfloor, e.Audience));
+        Assert.All(
+            _published.Events.Where(e => e.Method != RealtimeMethods.EquipmentStateChanged),
+            e => Assert.Equal(RealtimeAudience.Shopfloor, e.Audience));
+        var toSimulators = Assert.Single(_published.Events, e => e.Audience == RealtimeAudience.Simulators);
+        Assert.Equal(RealtimeMethods.EquipmentStateChanged, toSimulators.Method);
+        Assert.Equal(new EquipmentStatusEvent("MX01", EquipmentStatus.Running), toSimulators.Payload);
         Assert.Contains(
             new EquipmentStatusEvent("MX01", EquipmentStatus.Running),
             _published.Payloads<EquipmentStatusEvent>(RealtimeMethods.EquipmentStatusChanged));

@@ -16,6 +16,8 @@ namespace MiniMes.IntegrationTests;
 
 public sealed class MesApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
+    public const string MachineKey = "test-machine-key-0123456789";
+
     private static readonly string[] ModuleSchemas = ["identity", "wo", "lot", "carrier", "eqp", "exec", "qc", "alarm"];
 
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18-alpine").Build();
@@ -38,6 +40,7 @@ public sealed class MesApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
         builder.UseSetting("Seed:DemoPassword", "test-pass");
         builder.UseSetting("Seed:InspectionSpecs", "false");
         builder.UseSetting("Demo:EnableQuickLogin", "true");
+        builder.UseSetting("Machine:ApiKey", MachineKey);
         // Keeps the retention service's startup purge from racing tests that insert old rows.
         builder.UseSetting("Parameters:RetentionInitialDelaySeconds", "3600");
     }
@@ -98,6 +101,38 @@ public static class ApiFactoryExtensions
         response.EnsureSuccessStatusCode();
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
         return body.GetProperty("token").GetString()!;
+    }
+
+    /// <summary>
+    /// A started connection to the machine hub, authenticated with the <c>X-Machine-Key</c> header
+    /// (the factory's key unless <paramref name="key"/> is given). Long polling, as for the shop floor hub.
+    /// </summary>
+    public static async Task<HubConnection> ConnectMachineAsync(
+        this WebApplicationFactory<Program> factory, string? key = null)
+    {
+        var server = factory.Server;
+        var connection = new HubConnectionBuilder()
+            .WithUrl(new Uri(server.BaseAddress, "/hubs/machine"), options =>
+            {
+                options.Transports = HttpTransportType.LongPolling;
+                options.HttpMessageHandlerFactory = _ => server.CreateHandler();
+                options.Headers["X-Machine-Key"] = key ?? MesApiFactory.MachineKey;
+            })
+            .AddJsonProtocol(o => o.PayloadSerializerOptions.Converters.Add(
+                new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseUpper)))
+            .Build();
+
+        try
+        {
+            await connection.StartAsync(TestContext.Current.CancellationToken);
+        }
+        catch
+        {
+            await connection.DisposeAsync();
+            throw;
+        }
+
+        return connection;
     }
 
     /// <summary>

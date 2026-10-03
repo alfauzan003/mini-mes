@@ -46,4 +46,6 @@ public static class ErrorCodes
     public const string AlarmAlreadyAcknowledged = "ALARM_ALREADY_ACKNOWLEDGED";
     public const string AlarmNotActive = "ALARM_NOT_ACTIVE";
     public const string UnknownParameter = "UNKNOWN_PARAMETER";
+    public const string InvalidInput = "INVALID_INPUT";
+    public const string SimulatorOffline = "SIMULATOR_OFFLINE";
 }

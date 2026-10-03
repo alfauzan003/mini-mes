@@ -85,6 +85,8 @@ public sealed class ChangeFeed(IRealtimePublisher publisher, ILogger<ChangeFeed>
         {
             var events = new List<RealtimeEvent>();
             events.AddRange(changes.Equipment.Select(e => Shopfloor(RealtimeMethods.EquipmentStatusChanged, e)));
+            events.AddRange(changes.Equipment.Select(e => new RealtimeEvent(
+                RealtimeAudience.Simulators, RealtimeMethods.EquipmentStateChanged, e)));
             events.AddRange(changes.Lots.Select(l => Shopfloor(RealtimeMethods.LotChanged, l)));
             events.AddRange(changes.WorkOrders.Select(w => Shopfloor(RealtimeMethods.WorkOrderProgressed, w)));
 
