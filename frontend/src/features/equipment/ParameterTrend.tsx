@@ -1,22 +1,23 @@
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, XAxis, YAxis } from 'recharts'
 import type { LiveReadingDto, ParameterSeriesDto } from '@/shared/api/types'
 import { mergeSeries } from './series'
-
-const timeFormat = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
-const formatTime = (ms: number) => timeFormat.format(new Date(ms))
+import { timeAxis } from './timeAxis'
 
 interface ParameterTrendProps {
   series: ParameterSeriesDto
   recent: LiveReadingDto[]
   fromMs: number
+  toMs: number
 }
 
-export function ParameterTrend({ series, recent, fromMs }: ParameterTrendProps) {
+export function ParameterTrend({ series, recent, fromMs, toMs }: ParameterTrendProps) {
   const data = mergeSeries(series.points, recent, series.parameter, fromMs)
   const title = `${series.parameter} (${series.unit})`
   const latest = data.at(-1)
+  // A live reading can be a few seconds newer than the page clock; keep it on the chart.
+  const axis = timeAxis(fromMs, Math.max(toMs, latest?.t ?? toMs))
   const summary = latest
-    ? `Latest ${latest.value} ${series.unit} at ${formatTime(latest.t)}; limits ${series.low} to ${series.high}.`
+    ? `Latest ${latest.value} ${series.unit} at ${axis.format(latest.t)}; limits ${series.low} to ${series.high}.`
     : 'No readings in this range.'
 
   return (
@@ -33,8 +34,9 @@ export function ParameterTrend({ series, recent, fromMs }: ParameterTrendProps) 
               dataKey="t"
               type="number"
               scale="time"
-              domain={['dataMin', 'dataMax']}
-              tickFormatter={formatTime}
+              domain={axis.domain}
+              ticks={axis.ticks}
+              tickFormatter={axis.format}
               tick={{ fontSize: 12 }}
             />
             <YAxis domain={['auto', 'auto']} tick={{ fontSize: 12 }} width={48} />

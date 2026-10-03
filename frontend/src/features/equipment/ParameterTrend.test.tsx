@@ -19,13 +19,13 @@ const SERIES: ParameterSeriesDto = {
 
 describe('ParameterTrend', () => {
   it('titles the chart and summarises the latest value', () => {
-    render(<ParameterTrend series={SERIES} recent={[]} fromMs={T0} />)
+    render(<ParameterTrend series={SERIES} recent={[]} fromMs={T0} toMs={T0 + 15 * 60_000} />)
     expect(screen.getByRole('figure', { name: 'Oven temperature (C)' })).toBeInTheDocument()
     expect(screen.getByText(/Latest 101\.5 C/)).toBeInTheDocument()
   })
 
   it('says so when there are no readings', () => {
-    render(<ParameterTrend series={{ ...SERIES, points: [] }} recent={[]} fromMs={T0} />)
+    render(<ParameterTrend series={{ ...SERIES, points: [] }} recent={[]} fromMs={T0} toMs={T0 + 15 * 60_000} />)
     expect(screen.getByText('No readings in this range.')).toBeInTheDocument()
   })
 })
