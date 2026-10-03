@@ -13,7 +13,7 @@ namespace MiniMes.IntegrationTests;
 
 public sealed class MesApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
-    private static readonly string[] ModuleSchemas = ["identity", "wo", "lot", "carrier", "eqp", "exec", "qc"];
+    private static readonly string[] ModuleSchemas = ["identity", "wo", "lot", "carrier", "eqp", "exec", "qc", "alarm"];
 
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18-alpine").Build();
 

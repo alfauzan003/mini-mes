@@ -41,4 +41,8 @@ public static class ErrorCodes
     public const string MaterialNotFound = "MATERIAL_NOT_FOUND";
     public const string RunNotFound = "RUN_NOT_FOUND";
     public const string SpecNotFound = "SPEC_NOT_FOUND";
+    public const string AlarmCodeNotFound = "ALARM_CODE_NOT_FOUND";
+    public const string AlarmNotFound = "ALARM_NOT_FOUND";
+    public const string AlarmAlreadyAcknowledged = "ALARM_ALREADY_ACKNOWLEDGED";
+    public const string AlarmNotActive = "ALARM_NOT_ACTIVE";
 }

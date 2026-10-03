@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using MiniMes.Api.Modules.Alarms.Domain;
 using MiniMes.Api.Modules.Carriers.Domain;
 using MiniMes.Api.Modules.Identity;
 using MiniMes.Api.Modules.Lots.Domain;
@@ -62,6 +63,22 @@ public class DemoSeeder(MesDbContext db, IConfiguration configuration, LotIdGene
         ("GEN-OTHER", "Other", null)
     ];
 
+    private static readonly (OperationCode Operation, string Code, AlarmSeverity Severity, string Message)[] AlarmCodeSeed =
+    [
+        (OperationCode.Mix, "MX-TEMP-HIGH", AlarmSeverity.Major, "Slurry temperature high"),
+        (OperationCode.Mix, "MX-VAC-LOW", AlarmSeverity.Warning, "Vacuum too weak"),
+        (OperationCode.Mix, "MX-AGITATOR-FAULT", AlarmSeverity.Critical, "Agitator drive fault"),
+        (OperationCode.Coat, "CT-TEMP-HIGH", AlarmSeverity.Major, "Dryer temperature high"),
+        (OperationCode.Coat, "CT-DIE-PRESS-LOW", AlarmSeverity.Warning, "Slot-die pressure low"),
+        (OperationCode.Coat, "CT-WEB-BREAK", AlarmSeverity.Critical, "Web break"),
+        (OperationCode.Cal, "CP-TEMP-HIGH", AlarmSeverity.Major, "Roll temperature high"),
+        (OperationCode.Cal, "CP-NIP-PRESS-HIGH", AlarmSeverity.Warning, "Nip pressure high"),
+        (OperationCode.Cal, "CP-HYDRAULIC-FAULT", AlarmSeverity.Critical, "Hydraulic system fault"),
+        (OperationCode.Slit, "SL-TEMP-HIGH", AlarmSeverity.Major, "Motor temperature high"),
+        (OperationCode.Slit, "SL-TENSION-LOW", AlarmSeverity.Warning, "Web tension low"),
+        (OperationCode.Slit, "SL-BLADE-FAULT", AlarmSeverity.Critical, "Slitting blade fault")
+    ];
+
     public async Task SeedAsync(CancellationToken ct)
     {
         await SeedUsersAsync(ct);
@@ -71,6 +88,7 @@ public class DemoSeeder(MesDbContext db, IConfiguration configuration, LotIdGene
         await SeedEquipmentAsync(ct);
         await SeedCarriersAsync(ct);
         await SeedDefectCodesAsync(ct);
+        await SeedAlarmCodesAsync(ct);
         await db.SaveChangesAsync(ct);
         if (configuration.GetValue<bool>("Seed:InspectionSpecs"))
         {
@@ -110,6 +128,16 @@ public class DemoSeeder(MesDbContext db, IConfiguration configuration, LotIdGene
         }
 
         db.Set<DefectCode>().AddRange(DefectCodeSeed.Select(d => new DefectCode(d.Code, d.Description, d.Operation)));
+    }
+
+    private async Task SeedAlarmCodesAsync(CancellationToken ct)
+    {
+        if (await db.Set<AlarmCode>().AnyAsync(ct))
+        {
+            return;
+        }
+
+        db.Set<AlarmCode>().AddRange(AlarmCodeSeed.Select(a => new AlarmCode(a.Code, a.Message, a.Severity, a.Operation)));
     }
 
     private async Task SeedUsersAsync(CancellationToken ct)
