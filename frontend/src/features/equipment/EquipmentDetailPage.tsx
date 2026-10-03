@@ -57,7 +57,7 @@ function TrendsTab({ code }: { code: string }) {
       {series.data?.length === 0 && <p className="text-sm text-muted-foreground">No parameters for this machine.</p>}
       <div className="grid gap-4 lg:grid-cols-2">
         {series.data?.map((s) => (
-          <ParameterTrend key={s.parameter} series={s} recent={recent.data} fromMs={fromMs} />
+          <ParameterTrend key={s.parameter} series={s} recent={recent.data} fromMs={fromMs} toMs={now} />
         ))}
       </div>
     </div>

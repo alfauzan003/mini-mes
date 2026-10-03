@@ -117,6 +117,9 @@ public sealed class MachineModel
             var value = _values[p.Name];
             value += (target - value) * 0.3m + (decimal)noise;
             value = Math.Round(value, 2);
+            // Speeds and pressures (rpm, m/min, kPa, ton, N) cannot be negative; a temperature in °C can.
+            if (p.Kind != ParameterKind.Temperature)
+                value = Math.Max(value, 0m);
             _values[p.Name] = value;
             readings.Add(new ReadingInput(p.Name, value));
 

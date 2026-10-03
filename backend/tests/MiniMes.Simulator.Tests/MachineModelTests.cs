@@ -188,6 +188,65 @@ public class MachineModelTests
         ],
         []);
 
+    private static MachineEquipmentState Cal(EquipmentStatus status) => new(
+        "CP01", OperationCode.Cal, status,
+        [
+            new("Roll temp", ParameterKind.Temperature, "C", 90, 80, 100, null, "CP-TEMP-HIGH"),
+            new("Line speed", ParameterKind.Speed, "m/min", 30, 25, 35, null, null),
+            new("Nip pressure", ParameterKind.Pressure, "ton", 300, 270, 330, null, "CP-NIP-PRESS-HIGH")
+        ],
+        [
+            new("CP-TEMP-HIGH", AlarmSeverity.Major),
+            new("CP-NIP-PRESS-HIGH", AlarmSeverity.Major),
+            new("CP-ROLL-FAULT", AlarmSeverity.Critical)
+        ],
+        []);
+
+    public static IEnumerable<object[]> RestCases()
+    {
+        foreach (var status in new[] { EquipmentStatus.Idle, EquipmentStatus.Down, EquipmentStatus.Maintenance })
+        {
+            yield return [Coat(status)];
+            yield return [Mix(status)];
+            yield return [Cal(status)];
+            yield return [Slit(status)];
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(RestCases))]
+    public void A_machine_at_rest_never_reports_a_negative_reading(MachineEquipmentState state)
+    {
+        var model = new MachineModel(state, Options());
+        var rng = new Random(7);
+        var now = T0;
+        for (var i = 0; i < 2000; i++)
+        {
+            var tick = model.Tick(now, rng);
+            now = now.AddSeconds(2);
+            foreach (var reading in tick.Readings)
+                Assert.True(reading.Value >= 0m, $"{reading.Parameter} = {reading.Value} at tick {i}");
+        }
+    }
+
+    [Fact]
+    public void A_machine_stopping_after_a_run_never_reports_a_negative_reading()
+    {
+        var model = new MachineModel(Mix(EquipmentStatus.Running), Options());
+        var rng = new Random(7);
+        var now = T0;
+        for (var i = 0; i < 30; i++) { model.Tick(now, rng); now = now.AddSeconds(2); }
+
+        model.SetStatus(EquipmentStatus.Idle);
+        for (var i = 0; i < 2000; i++)
+        {
+            var tick = model.Tick(now, rng);
+            now = now.AddSeconds(2);
+            foreach (var reading in tick.Readings)
+                Assert.True(reading.Value >= 0m, $"{reading.Parameter} = {reading.Value} at tick {i}");
+        }
+    }
+
     public static IEnumerable<object[]> RampCases()
     {
         foreach (var from in new[] { EquipmentStatus.Idle, EquipmentStatus.Down })
