@@ -125,6 +125,9 @@ public static class ApiFactoryExtensions
         try
         {
             await connection.StartAsync(TestContext.Current.CancellationToken);
+            // The handshake completes before the server runs OnConnectedAsync (group join, presence). The hub
+            // handles invocations only after that, so awaiting one guarantees the simulator is registered.
+            await connection.InvokeAsync("GetEquipmentStates", TestContext.Current.CancellationToken);
         }
         catch
         {
