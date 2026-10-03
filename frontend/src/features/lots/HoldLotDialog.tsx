@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { useHoldLot } from '@/features/quality/api'
+import { REASON_MAX_LENGTH } from '@/features/quality/reason'
 import type { LotDto } from '@/shared/api/types'
 
 interface HoldLotDialogProps {
@@ -40,7 +41,7 @@ function HoldForm({ lot, onDone }: { lot: LotDto; onDone: () => void }) {
         <label htmlFor="hold-reason" className="text-sm font-medium">
           Reason
         </label>
-        <Input id="hold-reason" value={reason} onChange={(event) => setReason(event.target.value)} />
+        <Input id="hold-reason" maxLength={REASON_MAX_LENGTH} value={reason} onChange={(event) => setReason(event.target.value)} />
       </div>
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" onClick={onDone}>

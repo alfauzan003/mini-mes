@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useProducts } from '@/features/work-orders/api'
-import { ApiError } from '@/shared/api/client'
 import type { InspectionSpecDto, OperationCode } from '@/shared/api/types'
 import { useAuth } from '@/shared/auth/AuthContext'
 import { NativeSelect } from '@/shared/ui/NativeSelect'
@@ -40,7 +39,7 @@ function SpecRow({ spec, canEdit }: { spec: InspectionSpecDto; canEdit: boolean 
       setError(null)
     } catch (e) {
       // Limit validation belongs on the row; the global toast also fires for it.
-      setError(e instanceof ApiError && e.code === 'INVALID_SPEC_LIMITS' ? e.message : (e as Error).message)
+      setError((e as Error).message)
     }
   }
 

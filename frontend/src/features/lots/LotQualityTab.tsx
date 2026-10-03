@@ -75,10 +75,10 @@ export function LotQualityTab({ lotId }: { lotId: string }) {
   if (!inspections.data) return <p className="text-sm text-muted-foreground">Loading...</p>
   if (inspections.data.length === 0) return <p className="text-sm text-muted-foreground">No inspections yet.</p>
 
-  const newestFirst = [...inspections.data].sort((a, b) => b.inspectedAt.localeCompare(a.inspectedAt))
+  // The server returns inspections newest first.
   return (
     <div className="space-y-4">
-      {newestFirst.map((inspection) => (
+      {inspections.data.map((inspection) => (
         <InspectionCard key={inspection.id} inspection={inspection} />
       ))}
     </div>

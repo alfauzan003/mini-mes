@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useLot } from '@/features/lots/api'
 import { ApiError } from '@/shared/api/client'
-import type { LotDto, RecordInspectionRequest } from '@/shared/api/types'
+import type { LotDto, OperationCode, RecordInspectionRequest } from '@/shared/api/types'
 import { useDefectCodes, useRecordInspection, useSpecs } from './api'
 import { InspectionForm } from './InspectionForm'
 
@@ -16,11 +16,11 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
-/** Mounted only once the lot is known, so the spec lookup always has a product and operation. */
-function InspectionPanel({ lot }: { lot: LotDto }) {
+/** Mounted only for a lot with a product and a current operation, so the spec lookup is always filtered. */
+function InspectionPanel({ lot, productCode, operation }: { lot: LotDto; productCode: string; operation: OperationCode }) {
   const navigate = useNavigate()
-  const specs = useSpecs(lot.productCode ?? undefined, lot.currentOperation ?? undefined)
-  const defects = useDefectCodes(lot.currentOperation ?? undefined)
+  const specs = useSpecs(productCode, operation)
+  const defects = useDefectCodes(operation)
   const record = useRecordInspection(lot.lotId)
 
   async function submit(request: RecordInspectionRequest) {
@@ -39,7 +39,7 @@ function InspectionPanel({ lot }: { lot: LotDto }) {
     return <p className="text-sm text-muted-foreground">No spec limits are defined for this product and operation.</p>
 
   return (
-    <InspectionForm key={lot.lotId} specs={specs.data} defectCodes={defects.data} lotQty={lot.qty} uom={lot.uom} onSubmit={submit} />
+    <InspectionForm key={lot.lotId} specs={specs.data} defectCodes={defects.data} lotQty={lot.qty} uom={lot.uom} onSubmit={submit} submitting={record.isPending} />
   )
 }
 
@@ -90,7 +90,11 @@ export function InspectPage() {
       </Card>
       <Card>
         <CardContent className="pt-4">
-          <InspectionPanel lot={l} />
+          {l.productCode && l.currentOperation ? (
+            <InspectionPanel lot={l} productCode={l.productCode} operation={l.currentOperation} />
+          ) : (
+            <p className="text-sm text-muted-foreground">No spec limits for this lot.</p>
+          )}
         </CardContent>
       </Card>
     </div>

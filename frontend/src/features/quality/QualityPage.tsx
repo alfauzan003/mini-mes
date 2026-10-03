@@ -19,11 +19,9 @@ function formatAge(iso: string, now = Date.now()): string {
   return `${Math.floor(hours / 24)}d ${hours % 24}h`
 }
 
+/** The server returns a lot's inspections newest first. */
 function latestInspection(inspections: InspectionDto[] | undefined): InspectionDto | undefined {
-  return inspections?.reduce<InspectionDto | undefined>(
-    (latest, item) => (!latest || item.inspectedAt > latest.inspectedAt ? item : latest),
-    undefined,
-  )
+  return inspections?.[0]
 }
 
 function LotLink({ lotId }: { lotId: string }) {

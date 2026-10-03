@@ -31,7 +31,7 @@ export function LotDetailPage() {
   const { user } = useAuth()
   const canAct = user?.role === 'QC' || user?.role === 'ADMIN'
   // Queue membership already encodes WAIT, no inspection yet, and a spec for the operation.
-  const queue = useInspectionQueue()
+  const queue = useInspectionQueue({ enabled: canAct })
   const [holdOpen, setHoldOpen] = useState(false)
   const [dispositionOpen, setDispositionOpen] = useState(false)
 

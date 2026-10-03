@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from '@/components/ui/input'
 import type { Disposition, LotDto } from '@/shared/api/types'
 import { useDisposition } from './api'
+import { REASON_MAX_LENGTH } from './reason'
 
 interface DispositionDialogProps {
   lot: LotDto
@@ -65,7 +66,7 @@ function DispositionForm({ lot, onDone }: { lot: LotDto; onDone: () => void }) {
         <label htmlFor="disposition-reason" className="text-sm font-medium">
           Reason
         </label>
-        <Input id="disposition-reason" value={reason} onChange={(event) => setReason(event.target.value)} />
+        <Input id="disposition-reason" maxLength={REASON_MAX_LENGTH} value={reason} onChange={(event) => setReason(event.target.value)} />
       </div>
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" onClick={onDone}>

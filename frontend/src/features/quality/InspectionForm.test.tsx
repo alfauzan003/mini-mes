@@ -14,9 +14,18 @@ const defectCodes: DefectCodeDto[] = [
   { code: 'GEN-DMG', description: 'Surface damage', operation: null },
 ]
 
-function setup(lotQty = 118) {
+function setup(lotQty = 118, submitting = false) {
   const onSubmit = vi.fn()
-  render(<InspectionForm specs={specs} defectCodes={defectCodes} lotQty={lotQty} uom="m" onSubmit={onSubmit} />)
+  render(
+    <InspectionForm
+      specs={specs}
+      defectCodes={defectCodes}
+      lotQty={lotQty}
+      uom="m"
+      onSubmit={onSubmit}
+      submitting={submitting}
+    />,
+  )
   return { onSubmit }
 }
 
@@ -59,6 +68,22 @@ describe('InspectionForm', () => {
     expect(screen.queryByTestId('judgment-spec-thickness')).toBeEmptyDOMElement()
     expect(screen.getByTestId('inspection-result')).toHaveTextContent('INCOMPLETE')
     expect(submit()).toBeDisabled()
+  })
+
+  it('disables submit while a submission is pending', async () => {
+    const { onSubmit } = setup(118, true)
+    await userEvent.type(screen.getByLabelText('Thickness'), '120')
+    await userEvent.type(screen.getByLabelText('Density'), '3,5')
+
+    expect(screen.getByTestId('inspection-result')).toHaveTextContent('PASS')
+    expect(submit()).toBeDisabled()
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  it('limits the reason length', async () => {
+    setup()
+    await userEvent.type(screen.getByLabelText('Thickness'), '123')
+    expect(screen.getByLabelText('Reason')).toHaveAttribute('maxLength', '473')
   })
 
   it('disables submit until every value is entered', async () => {

@@ -36,10 +36,11 @@ export function useDefectCodes(operation?: OperationCode) {
 }
 
 /** Lots waiting for a first inspection of their current operation, oldest first. */
-export function useInspectionQueue() {
+export function useInspectionQueue(options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ['inspections', 'queue'],
     queryFn: () => apiFetch<LotDto[]>('/api/inspections/queue'),
+    enabled: options.enabled ?? true,
   })
 }
 

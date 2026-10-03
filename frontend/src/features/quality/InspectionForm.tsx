@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { NativeSelect } from '@/shared/ui/NativeSelect'
 import { StatusBadge } from '@/shared/ui/StatusBadge'
 import type { DefectCodeDto, InspectionSpecDto, Judgment, RecordInspectionRequest } from '@/shared/api/types'
+import { REASON_MAX_LENGTH } from './reason'
 import { judge, parseDecimal, summarize } from './judge'
 
 interface InspectionFormProps {
@@ -13,9 +14,10 @@ interface InspectionFormProps {
   lotQty: number
   uom: string
   onSubmit: (request: RecordInspectionRequest) => void
+  submitting?: boolean
 }
 
-export function InspectionForm({ specs, defectCodes, lotQty, uom, onSubmit }: InspectionFormProps) {
+export function InspectionForm({ specs, defectCodes, lotQty, uom, onSubmit, submitting = false }: InspectionFormProps) {
   const [values, setValues] = useState<Record<string, string>>({})
   const [defectCode, setDefectCode] = useState('')
   const [reason, setReason] = useState('')
@@ -51,7 +53,7 @@ export function InspectionForm({ specs, defectCodes, lotQty, uom, onSubmit }: In
       className="space-y-4"
       onSubmit={(event) => {
         event.preventDefault()
-        if (!canSubmit) return
+        if (!canSubmit || submitting) return
         onSubmit({
           measurements: specs.map((spec, index) => ({ specId: spec.id, value: parsed[index] as number })),
           defectCode: failed ? defectCode : null,
@@ -133,6 +135,7 @@ export function InspectionForm({ specs, defectCodes, lotQty, uom, onSubmit }: In
             </label>
             <Input
               id="inspection-reason"
+              maxLength={REASON_MAX_LENGTH}
               className="min-h-12 text-base"
               value={reason}
               onChange={(event) => setReason(event.target.value)}
@@ -161,7 +164,7 @@ export function InspectionForm({ specs, defectCodes, lotQty, uom, onSubmit }: In
       )}
 
       <div className="flex justify-end">
-        <Button type="submit" className="min-h-12" disabled={!canSubmit}>
+        <Button type="submit" className="min-h-12" disabled={!canSubmit || submitting}>
           Submit inspection
         </Button>
       </div>
