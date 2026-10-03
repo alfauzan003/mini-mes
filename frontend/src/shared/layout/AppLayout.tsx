@@ -1,4 +1,4 @@
-import { ClipboardList, Factory, LogOut, Package, ShieldCheck, Waypoints, type LucideIcon } from 'lucide-react'
+import { ClipboardList, Factory, LayoutDashboard, LogOut, Package, ShieldCheck, Waypoints, type LucideIcon } from 'lucide-react'
 import { NavLink, Outlet } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -14,6 +14,7 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: 'all' },
   { to: '/work-orders', label: 'Work Orders', icon: ClipboardList, roles: 'all' },
   { to: '/station', label: 'Operator Station', icon: Factory, roles: ['OPERATOR', 'ADMIN'] },
   { to: '/quality', label: 'Quality', icon: ShieldCheck, roles: 'all' },

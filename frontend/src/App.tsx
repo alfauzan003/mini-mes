@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { CarrierListPage } from '@/features/carriers/CarrierListPage'
+import { DashboardPage } from '@/features/dashboard/DashboardPage'
 import { LotDetailPage } from '@/features/lots/LotDetailPage'
 import { LotListPage } from '@/features/lots/LotListPage'
 import { InspectPage } from '@/features/quality/InspectPage'
@@ -16,7 +17,7 @@ import { AppLayout } from '@/shared/layout/AppLayout'
 
 function HomeRedirect() {
   const { user } = useAuth()
-  const home = user?.role === 'OPERATOR' ? '/station' : user?.role === 'QC' ? '/quality' : '/work-orders'
+  const home = user?.role === 'OPERATOR' ? '/station' : user?.role === 'QC' ? '/quality' : '/dashboard'
   return <Navigate to={home} replace />
 }
 
@@ -27,6 +28,7 @@ export function App() {
       <Route element={<RequireAuth />}>
         <Route element={<AppLayout />}>
           <Route index element={<HomeRedirect />} />
+          <Route path="dashboard" element={<DashboardPage />} />
           <Route path="work-orders" element={<WorkOrderListPage />} />
           <Route path="work-orders/:id" element={<WorkOrderDetailPage />} />
           <Route
