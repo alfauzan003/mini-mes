@@ -2,6 +2,8 @@ import { Navigate, Route, Routes } from 'react-router'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { CarrierListPage } from '@/features/carriers/CarrierListPage'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
+import { EquipmentDetailPage } from '@/features/equipment/EquipmentDetailPage'
+import { EquipmentListPage } from '@/features/equipment/EquipmentListPage'
 import { LotDetailPage } from '@/features/lots/LotDetailPage'
 import { LotListPage } from '@/features/lots/LotListPage'
 import { InspectPage } from '@/features/quality/InspectPage'
@@ -29,6 +31,8 @@ export function App() {
         <Route element={<AppLayout />}>
           <Route index element={<HomeRedirect />} />
           <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="equipment" element={<EquipmentListPage />} />
+          <Route path="equipment/:code" element={<EquipmentDetailPage />} />
           <Route path="work-orders" element={<WorkOrderListPage />} />
           <Route path="work-orders/:id" element={<WorkOrderDetailPage />} />
           <Route
