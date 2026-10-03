@@ -24,6 +24,22 @@ describe('timeAxis', () => {
     for (const label of labels) expect(label).toMatch(/^\d{2}:\d{2}$/)
   })
 
+  it.each([
+    [15, 3],
+    [60, 10],
+    [360, 60],
+    [1440, 240],
+  ])('keeps the nominal tick step for a %i-minute range when a newer reading extends the end', (minutes, stepMinutes) => {
+    const fromMs = NOW - minutes * 60_000
+    for (const extraMs of [1, 4_000, 20_000]) {
+      const axis = timeAxis(fromMs, NOW, NOW + extraMs)
+      expect(axis.domain).toEqual([fromMs, NOW + extraMs])
+      const gaps = axis.ticks.slice(1).map((t, i) => t - axis.ticks[i])
+      expect(gaps.length).toBeGreaterThan(0)
+      for (const gap of gaps) expect(gap).toBe(stepMinutes * 60_000)
+    }
+  })
+
   it('places ticks on round minutes', () => {
     const axis = timeAxis(NOW - 15 * 60_000, NOW)
     for (const t of axis.ticks) expect(new Date(t).getSeconds()).toBe(0)

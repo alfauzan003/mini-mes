@@ -14,12 +14,14 @@ export interface TimeAxis {
 /**
  * X axis for a trend over [fromMs, toMs]: ticks on round local minutes, spaced so that their HH:mm labels never
  * repeat. The first tick is strictly after fromMs so a 24 h range does not label both ends with the same time.
+ * The spacing depends only on [fromMs, toMs]; domainEndMs may extend the visible end (for a reading newer than
+ * toMs) without changing it, which keeps the labels steady while live readings arrive.
  */
-export function timeAxis(fromMs: number, toMs: number): TimeAxis {
+export function timeAxis(fromMs: number, toMs: number, domainEndMs: number = toMs): TimeAxis {
   const span = toMs - fromMs
   const step = (STEPS.find((s) => span / (s * MINUTE) <= MAX_TICKS) ?? STEPS.at(-1)!) * MINUTE
   const offset = new Date(fromMs).getTimezoneOffset() * MINUTE
   const ticks: number[] = []
-  for (let t = Math.floor((fromMs - offset) / step) * step + step + offset; t <= toMs; t += step) ticks.push(t)
-  return { domain: [fromMs, toMs], ticks, format: (ms) => labelFormat.format(new Date(ms)) }
+  for (let t = Math.floor((fromMs - offset) / step) * step + step + offset; t <= domainEndMs; t += step) ticks.push(t)
+  return { domain: [fromMs, domainEndMs], ticks, format: (ms) => labelFormat.format(new Date(ms)) }
 }

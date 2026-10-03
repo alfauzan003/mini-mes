@@ -14,8 +14,9 @@ export function ParameterTrend({ series, recent, fromMs, toMs }: ParameterTrendP
   const data = mergeSeries(series.points, recent, series.parameter, fromMs)
   const title = `${series.parameter} (${series.unit})`
   const latest = data.at(-1)
-  // A live reading can be a few seconds newer than the page clock; keep it on the chart.
-  const axis = timeAxis(fromMs, Math.max(toMs, latest?.t ?? toMs))
+  // A live reading can be a few seconds newer than the page clock; keep it on the chart, but space the ticks
+  // from the selected range so the labels do not jump between steps as readings arrive.
+  const axis = timeAxis(fromMs, toMs, Math.max(toMs, latest?.t ?? toMs))
   const summary = latest
     ? `Latest ${latest.value} ${series.unit} at ${axis.format(latest.t)}; limits ${series.low} to ${series.high}.`
     : 'No readings in this range.'
