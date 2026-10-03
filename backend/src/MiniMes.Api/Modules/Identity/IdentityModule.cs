@@ -38,6 +38,21 @@ public static class IdentityModule
                     RoleClaimType = "role",
                     ClockSkew = TimeSpan.FromMinutes(1)
                 };
+                bearer.Events = new JwtBearerEvents
+                {
+                    // Browsers cannot set headers on WebSocket and server-sent event requests, so SignalR sends
+                    // the token in the query string. Only hub paths accept it there.
+                    OnMessageReceived = context =>
+                    {
+                        var token = context.Request.Query["access_token"].ToString();
+                        if (token.Length > 0 && context.Request.Path.StartsWithSegments("/hubs"))
+                        {
+                            context.Token = token;
+                        }
+
+                        return Task.CompletedTask;
+                    }
+                };
             });
 
         services.AddAuthorization(options =>

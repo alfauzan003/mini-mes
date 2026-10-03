@@ -1,8 +1,11 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MiniMes.Api.Shared.Data;
@@ -82,12 +85,51 @@ public static class ApiFactoryExtensions
     public static async Task<HttpClient> ClientAsAsync(this WebApplicationFactory<Program> factory, string username)
     {
         var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", await factory.LoginTokenAsync(username));
+        return client;
+    }
+
+    public static async Task<string> LoginTokenAsync(this WebApplicationFactory<Program> factory, string username)
+    {
+        using var client = factory.CreateClient();
         var response = await client.PostAsJsonAsync(
             "/api/auth/login", new { username, password = "test-pass" }, TestContext.Current.CancellationToken);
         response.EnsureSuccessStatusCode();
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
-        client.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", body.GetProperty("token").GetString());
-        return client;
+        return body.GetProperty("token").GetString()!;
+    }
+
+    /// <summary>
+    /// A started connection to the shop floor hub, signed in as a seeded user, or anonymous when
+    /// <paramref name="username"/> is null. Long polling, because the in-memory test server has no WebSockets.
+    /// </summary>
+    public static async Task<HubConnection> ConnectShopfloorAsync(
+        this WebApplicationFactory<Program> factory, string? username)
+    {
+        var token = username is null ? null : await factory.LoginTokenAsync(username);
+        var server = factory.Server;
+        var connection = new HubConnectionBuilder()
+            .WithUrl(new Uri(server.BaseAddress, "/hubs/shopfloor"), options =>
+            {
+                options.Transports = HttpTransportType.LongPolling;
+                options.HttpMessageHandlerFactory = _ => server.CreateHandler();
+                options.AccessTokenProvider = () => Task.FromResult(token);
+            })
+            .AddJsonProtocol(o => o.PayloadSerializerOptions.Converters.Add(
+                new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseUpper)))
+            .Build();
+
+        try
+        {
+            await connection.StartAsync(TestContext.Current.CancellationToken);
+        }
+        catch
+        {
+            await connection.DisposeAsync();
+            throw;
+        }
+
+        return connection;
     }
 }

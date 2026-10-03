@@ -1,11 +1,14 @@
 using Microsoft.EntityFrameworkCore;
 using MiniMes.Api.Modules.Equipment.Domain;
+using MiniMes.Api.Shared.Realtime;
 using MiniMes.Api.Shared.Results;
 using EquipmentEntity = MiniMes.Api.Modules.Equipment.Domain.Equipment;
 
 namespace MiniMes.Api.Shared.Data;
 
-public class MesDbContext(DbContextOptions<MesDbContext> options, TimeProvider time) : DbContext(options)
+/// <param name="changeFeed">Publishes committed changes to clients; optional so tooling and tests can build a bare context.</param>
+public class MesDbContext(
+    DbContextOptions<MesDbContext> options, TimeProvider time, ChangeFeed? changeFeed = null) : DbContext(options)
 {
     public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
@@ -52,25 +55,36 @@ public class MesDbContext(DbContextOptions<MesDbContext> options, TimeProvider t
 
     private async Task<Error?> RunInTransactionAsync(Func<CancellationToken, Task<Error?>> work, CancellationToken ct)
     {
-        await using var transaction = await Database.BeginTransactionAsync(ct);
-        try
+        PendingChanges? pending;
+        await using (var transaction = await Database.BeginTransactionAsync(ct))
         {
-            var error = await work(ct);
-            if (error is not null)
+            try
             {
-                await transaction.RollbackAsync(ct);
-                ChangeTracker.Clear();
-                return error;
-            }
+                var error = await work(ct);
+                if (error is not null)
+                {
+                    await transaction.RollbackAsync(ct);
+                    ChangeTracker.Clear();
+                    return error;
+                }
 
-            await SaveChangesAsync(ct);
-            await transaction.CommitAsync(ct);
-            return null;
+                // Taken before saving: afterwards every entry is Unchanged and what was modified is gone.
+                pending = changeFeed?.Capture(ChangeTracker);
+                await SaveChangesAsync(ct);
+                await transaction.CommitAsync(ct);
+            }
+            catch
+            {
+                ChangeTracker.Clear();
+                throw;
+            }
         }
-        catch
+
+        if (pending is not null)
         {
-            ChangeTracker.Clear();
-            throw;
+            await changeFeed!.PublishAsync(pending, this, ct);
         }
+
+        return null;
     }
 }
