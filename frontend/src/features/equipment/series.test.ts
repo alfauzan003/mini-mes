@@ -39,4 +39,15 @@ describe('mergeSeries', () => {
     const result = mergeSeries([], [live('Temp', 20, 3), live('Temp', 10, 2), live('Temp', 20, 3)], 'Temp', T0)
     expect(result.map((p) => p.t)).toEqual([T0 + 10_000, T0 + 20_000])
   })
+
+  it('drops history points older than from', () => {
+    const result = mergeSeries(history, [], 'Temp', T0 + 5_000)
+    expect(result).toEqual([{ t: T0 + 10_000, value: 2 }])
+  })
+
+  it('slides the window as from advances', () => {
+    const recent = [live('Temp', 20, 3), live('Temp', 30, 4)]
+    expect(mergeSeries(history, recent, 'Temp', T0).map((p) => p.value)).toEqual([1, 2, 3, 4])
+    expect(mergeSeries(history, recent, 'Temp', T0 + 15_000).map((p) => p.value)).toEqual([3, 4])
+  })
 })

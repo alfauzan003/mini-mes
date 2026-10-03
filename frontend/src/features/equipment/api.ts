@@ -16,6 +16,7 @@ export function useParameterSeries(code: string | undefined, rangeMinutes: numbe
     },
     enabled: !!code,
     staleTime: 15_000,
+    refetchInterval: 30_000,
   })
 }
 
