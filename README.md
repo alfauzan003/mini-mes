@@ -8,7 +8,7 @@ A manufacturing execution system for a lithium-ion battery electrode line, cover
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshots/02-work-order.png" alt="Released work order detail page"><br>A released work order for 8 cathode pancakes, with one machine assigned to each route step.</td>
+    <td width="50%"><img src="docs/screenshots/02-work-order.png" alt="Released work order detail page"><br>A released work order for 2 cathode pancakes, with one machine assigned to each route step.</td>
     <td width="50%"><img src="docs/screenshots/03-operator-station.png" alt="Operator station for coater CT01"><br>Operator station on coater CT01: the open run, its input lots, the doffed roll and live parameters.</td>
   </tr>
   <tr>
@@ -17,7 +17,7 @@ A manufacturing execution system for a lithium-ion battery electrode line, cover
   </tr>
   <tr>
     <td width="50%"><img src="docs/screenshots/06-alarm.png" alt="Dashboard with CT01 down and an active critical alarm"><br>An injected fault: a critical "Web break" alarm takes CT01 DOWN.</td>
-    <td width="50%"><img src="docs/screenshots/07-equipment-trends.png" alt="Parameter trend charts for CT01"><br>Parameter trends for CT01 over the last 15 minutes, drawn against their limits.</td>
+    <td width="50%"><img src="docs/screenshots/07-equipment-trends.png" alt="Parameter trend charts for CT01"><br>CT01 trends over the 15-minute range: the coating run settles inside its limit lines, then the readings fall back toward rest.</td>
   </tr>
 </table>
 
@@ -65,7 +65,7 @@ The anode product runs the same route with GRAPHITE, CMC and SBR as raw material
 
 IDs are dated with the plant's calendar date (time zone `Asia/Jakarta` by default, set with `PLANT_TIME_ZONE`). Sequence numbers restart every day for each prefix and are issued inside the command's transaction, so a rolled-back command does not use up a number. `C`/`A` is the polarity: cathode or anode.
 
-| Lot | Format | Example |
+| ID | Format | Example |
 | --- | --- | --- |
 | Work order | `WO-yyMMdd-nnn` | `WO-261003-001` |
 | RAW material | `R{C\|A}-yyMMdd-nnn` | `RC-261003-005` |
@@ -89,7 +89,7 @@ EC-261003-CT01-001-01          PANCAKE, lane 1, 120 m on PC-0001
       └─ RC-261003-008         RAW, NMP 170 kg
 ```
 
-The forward view of `FC-261003-002` shows the reverse: the foil lot, its electrode roll and all eight pancakes cut from it.
+The forward view of `FC-261003-002` shows the reverse: the foil lot, its electrode roll and both pancakes cut from it.
 
 ## State machines
 
@@ -208,7 +208,7 @@ The API is one deployable. Each module has its own folder under `Modules/`, usua
 | Layer | Technology |
 | --- | --- |
 | API | .NET 10, ASP.NET Core 10 minimal APIs, SignalR, JWT bearer authentication |
-| Data access | Entity Framework Core 10, Npgsql EF Core provider 10, EFCore.NamingConventions (snake_case) |
+| Data access | Entity Framework Core 10, Npgsql EF Core provider 10, EFCore.NamingConventions 10 (snake_case) |
 | Database | PostgreSQL 18 |
 | Simulator | .NET 10 worker service, SignalR client 10 |
 | Frontend | React 19, TypeScript 6, Vite 8, React Router 7, TanStack Query 5, React Hook Form 7, Zod 4 |
@@ -221,7 +221,11 @@ The API is one deployable. Each module has its own folder under `Modules/`, usua
 
 ## Run it
 
-Prerequisite: [Docker](https://www.docker.com/) (Docker Desktop, or Docker Engine with Compose).
+Prerequisites: [Docker](https://www.docker.com/) (Docker Desktop, or Docker Engine with Compose) is all you need to run the stack. To run the tests and the end-to-end test you also need:
+
+- the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0), 10.0.400 or later (pinned in `global.json`),
+- [Node.js](https://nodejs.org/) 24.15 or later (22.22.2 or later also works; the frontend's test dependencies need one of these, and CI uses Node 24),
+- Docker running, because the integration tests start PostgreSQL through Testcontainers and the end-to-end test runs against the Compose stack.
 
 ```bash
 docker compose up --build
@@ -268,37 +272,50 @@ Stop with `docker compose down`. To reset to a freshly seeded database, drop the
 docker compose down -v
 ```
 
-## 5-minute demo script
+## Demo script (about 10 minutes)
 
-The same steps, in the same order and with the same values, run as an automated end-to-end test, which also takes the screenshots above. Your work order and lot numbers will differ from the ones shown here.
+Clicking through it by hand takes about ten minutes, most of it in step 7. The same steps, in the same order and with the same values, run as an automated end-to-end test, which also takes the screenshots above. Your work order and lot numbers will differ from the ones shown here.
 
 1. **Planner: the dashboard.** On the login page click **Log in as Planner**. The dashboard shows the eight machines grouped by operation, each with its status and live readings, and **Live** in the header. Notice the readings change every couple of seconds without a reload.
-2. **Planner: create and release a work order.** Open **Work Orders** → **New Work Order**. Product `CATH-NCM811`, Target quantity `8`, Planned start now, Planned end 24 hours later, Mixing `MX01`, Coating `CT01`, Calendering `CP01`, Slitting `SL01` → **Save**, then **Release**. Notice the order is now RELEASED with progress 0 / 8, and **Release** has been replaced by **Hold**.
+2. **Planner: create and release a work order.** Open **Work Orders** → **New Work Order**. Product `CATH-NCM811`, Target quantity `2`, Planned start now, Planned end 24 hours later, Mixing `MX01`, Coating `CT01`, Calendering `CP01`, Slitting `SL01` → **Save**, then **Release**. Notice the order is now RELEASED with progress 0 / 2, and **Release** has been replaced by **Hold**.
 3. **Planner: receive material.** Open **WIP / Lots** → **Register material** and register five lots, one at a time: `NCM811` 300 kg, `PVDF` 15 kg, `SUPER-P` 15 kg, `NMP` 170 kg and `AL-FOIL` 1500 m. Notice each one gets a dated ID (`RC-…`, `FC-…`) and starts as WAIT / PASS, due for MIX or COAT.
 4. **Operator: mix the slurry.** **Logout**, then **Log in as Operator**, which opens the Operator Station. Pick **MX01** and select the work order. In **Scan lot or carrier**, type each of the four RAW lot IDs and press Enter after each one → **Track in**. Enter Good (kg) `480`, Reject (kg) `20` → **Produce** → **Track out** → **Confirm track out** (the defaults use the raw lots in full). Notice the four RAW lots are now CONSUMED and a slurry lot `SC-…-MX01-…` exists. Had the foil been among the scanned lots, **Track in** would have been refused with `INVALID_INPUT_SET`, because MIX only accepts RAW lots.
 5. **QC: inspect the slurry.** **Logout**, then **Log in as QC**, which opens Quality on the **Inspection queue**. Click **Inspect** on the slurry. Enter Viscosity `6000` and Solid content `70,5`, with a decimal comma. Notice each value is judged OK as you type and the result shows PASS. → **Submit inspection**. A toast confirms `<slurry> PASS`, and the slurry disappears from the queue, so the coater now accepts it. Before this inspection, the coater refuses it with `LOT_QUALITY_PENDING`.
-6. **Operator: coat.** Log in as Operator again, pick **CT01** and select the work order. Scan the foil lot, then the slurry lot → **Track in**. Notice CT01 turns RUNNING and its three live parameters (Dryer temp, Line speed, Slot-die pressure) ramp up from rest toward their setpoints. Enter Empty carrier: the first empty bobbin (`BB-0001` on a fresh database), Good (m) `1000`, Reject (m) `20` → **Doff roll**. Notice the roll `EC-…-CT01-…` is now on that bobbin. **Track out**, set the foil's consumed quantity to `1020` (the slurry's 480 kg stays as it is) → **Confirm track out**. Notice the foil goes back to WAIT with 480 m left, and the slurry is CONSUMED.
+6. **Operator: coat.** **Logout**, then **Log in as Operator** again, pick **CT01** and select the work order. Scan the foil lot, then the slurry lot → **Track in**. Notice CT01 turns RUNNING and its three live parameters (Dryer temp, Line speed, Slot-die pressure) ramp up from rest toward their setpoints. Enter Empty carrier: the first empty bobbin (`BB-0001` on a fresh database), Good (m) `1000`, Reject (m) `20` → **Doff roll**. Notice the roll `EC-…-CT01-…` is now on that bobbin. Wait until the three parameters are inside their limits, and keep the run open for about half a minute more: readings are stored every 10 seconds, so the trends in step 10 then show the run inside its limits. **Track out**, set the foil's consumed quantity to `1020` (the slurry's 480 kg stays as it is) → **Confirm track out**. Notice the foil goes back to WAIT with 480 m left, and the slurry is CONSUMED.
 7. **The rest of the line, and a quality failure.**
    - As QC, inspect the roll from the queue: Loading weight `20` → PASS.
-   - As Operator on **CP01**, scan the bobbin code (or the roll ID) → **Track in**, then Empty carrier: the next empty bobbin, Good (m) `990`, Reject (m) `10` → **Produce** → **Track out** → **Confirm track out**. Notice the roll keeps its lot ID and moves to the new bobbin, and the old bobbin is free again.
+   - As Operator on **CP01**, select the work order, scan the bobbin code (or the roll ID) → **Track in**, then Empty carrier: the next empty bobbin, Good (m) `990`, Reject (m) `10` → **Produce** → **Track out** → **Confirm track out**. Notice the roll keeps its lot ID and moves to the new bobbin, and the old bobbin is free again.
    - As QC, inspect the calendered roll: Thickness `120`, Density `3.45` → PASS.
-   - As Operator on **SL01**, scan the roll → **Track in**. In the lane grid, give lanes 1 to 8 one empty pancake core each (`PC-…`), Good m `120` and Reject m `0` → **Produce** → **Track out** → **Confirm track out**. Notice eight pancake lots `<roll>-01` to `<roll>-08` appear, and the whole roll is consumed.
-   - As QC, inspect pancakes `-01` to `-07` with Width `100` and Burr height `4` → each PASS. Notice the work order's progress counts up to 7 / 8.
-   - Inspect pancake `-08` with Width `100.0` and Burr height `10`. The limit is 8 µm, so the result turns FAIL. Pick Defect code `SL-BURR`, enter Reason `Burr height above the upper limit` → **Submit inspection**. Notice the toast says the lot is on hold.
-   - Open **Quality** → **On hold** and click **Disposition** on pancake `-08`. Choose **Release**, Reason `Burr re-measured within the customer tolerance` → **Release lot**. A toast confirms `<pancake> released`.
-   - Open **Work Orders** and the order. Notice it is COMPLETED at 8 / 8: the released pancake was finished and counted.
+   - As Operator on **SL01**, select the work order, scan the roll → **Track in**. In the lane grid, give lanes 1 and 2 one empty pancake core each (`PC-…`), Good m `120` and Reject m `0`. The order needs only two pancakes, but the grid wants a quantity on every lane, so leave lanes 3 to 8 without a core and enter Reject m `120` → **Produce** → **Track out** → **Confirm track out**. Notice two pancake lots `<roll>-01` and `<roll>-02` appear, and the whole roll is consumed.
+   - As QC, inspect pancake `-01` with Width `100` and Burr height `4` → PASS. Notice the work order's progress is now 1 / 2.
+   - Inspect pancake `-02` with Width `100` and Burr height `10`. The limit is 8 µm, so the result turns FAIL. Pick Defect code `SL-BURR`, enter Reason `Burr height above the upper limit` → **Submit inspection**. Notice the toast says the lot is on hold.
+   - Open **Quality** → **On hold** and click **Disposition** on pancake `-02`. Choose **Release**, Reason `Burr re-measured within the customer tolerance` → **Release lot**. A toast confirms `<pancake> released`.
+   - Open **Work Orders** and the order. Notice it is COMPLETED at 2 / 2: the released pancake was finished and counted.
 8. **Trace a pancake back to its materials.** On the work order page click pancake `-01`, open the **Genealogy** tab and choose **Backward**. Notice the graph of 8 lots: pancake ← electrode roll ← the AL-FOIL lot and the slurry ← the four RAW lots. Its **History** tab lists every event of the lot, and its **Quality** tab lists its inspections.
-9. **Admin: inject a fault.** Log out, **Log in as Admin**, open **Equipment** → **CT01** → **Inject fault** → **Simulate fault**. A toast confirms "Fault requested on CT01", and the critical alarm follows as its own toast, "CT01: Web break". Open the **Dashboard**. Notice CT01 is DOWN, **Active alarms** lists the CRITICAL Web break on CT01, and the Alarms entry in the navigation shows a badge. The simulator clears the fault by itself after 30 to 60 seconds, and CT01 returns to IDLE.
-10. **Admin: parameter trends.** **Equipment** → **CT01** → **Trends** tab, Range `15 m`. Notice the three charts with their low and high limit lines, and the stored readings from the coating run.
+9. **Admin: inject a fault.** **Logout**, then **Log in as Admin**, open **Equipment** → **CT01** → **Inject fault** → **Simulate fault**. A toast confirms "Fault requested on CT01", and the critical alarm follows as its own toast, "CT01: Web break". Open the **Dashboard**. Notice CT01 is DOWN, **Active alarms** lists the CRITICAL Web break on CT01, and the Alarms entry in the navigation shows a badge. The simulator clears the fault by itself after 30 to 60 seconds, and CT01 returns to IDLE.
+10. **Admin: parameter trends.** **Equipment** → **CT01** → **Trends** tab, Range `15 m`. Notice the three charts span the last 15 minutes, with their low and high limit lines, and show the coating run inside its limits.
 
-To run the same script automatically against the running stack, install the browser once, then run the test:
+To run the same script automatically against the running stack, install the frontend's packages and the browser once, then run the test:
 
 ```bash
+npm ci --prefix frontend
 npx --prefix frontend playwright install chromium
 npm run e2e --prefix frontend
 ```
 
-It drives the UI for steps 1, 2, 4, 5, 6, the release in step 7 and steps 8 to 10. Material registration, the CAL and SLIT runs and the other inspections in step 7 go through the API, to save time. It creates its own work order and lots and picks carriers that are empty, so it can run again on the same database. It also rewrites the screenshots in `docs/screenshots/`. To point it at another address, set `E2E_BASE_URL` (`E2E_BASE_URL=http://localhost:8080 npm run e2e --prefix frontend`, or `$env:E2E_BASE_URL="http://localhost:8080"; npm run e2e --prefix frontend` in PowerShell).
+On a fresh Linux machine, use `npx --prefix frontend playwright install --with-deps chromium` to install the browser's system libraries as well.
+
+It drives the UI for steps 1, 2, 4, 5, 6, the release in step 7 and steps 8 to 10. Material registration, the CAL and SLIT runs and the other inspections in step 7 go through the API, to save time. It creates its own work order and lots and picks carriers that are empty, so it can run again on the same database. It saves its screenshots under `frontend/test-results/screenshots/`, which git ignores. To rewrite the README images in `docs/screenshots/` instead, set `UPDATE_SCREENSHOTS=1`:
+
+```bash
+UPDATE_SCREENSHOTS=1 npm run e2e --prefix frontend
+```
+
+```powershell
+$env:UPDATE_SCREENSHOTS=1; npm run e2e --prefix frontend
+```
+
+In PowerShell the variable stays set for the rest of the session; clear it with `Remove-Item Env:UPDATE_SCREENSHOTS`. To point the test at another address, set `E2E_BASE_URL` (`E2E_BASE_URL=http://localhost:8080 npm run e2e --prefix frontend`, or `$env:E2E_BASE_URL="http://localhost:8080"; npm run e2e --prefix frontend` in PowerShell).
 
 ## Tests
 
@@ -306,11 +323,11 @@ It drives the UI for steps 1, 2, 4, 5, 6, the release in step 7 and steps 8 to 1
 | --- | --- | ---: | --- |
 | Backend unit | `backend/tests/MiniMes.UnitTests` | 160 | Entity rules and state transitions (work order, lot, carrier, equipment, alarm, production run, inspection, spec), operation input rules, lot ID format, error to ProblemDetails mapping, plant calendar, quantity limits |
 | Backend integration | `backend/tests/MiniMes.IntegrationTests` | 259 | The real API host against PostgreSQL 18 started by Testcontainers: the endpoints and their error codes, a full MIX-to-SLIT flow, concurrent commands, the append-only trigger, lot ID sequences, genealogy queries, realtime events and both hubs, the simulator session against the machine hub |
-| Simulator model | `backend/tests/MiniMes.Simulator.Tests` | 19 | `MachineModel`: values within limits while running and back to rest when idle, drift, alarm raise and clear, no alarms during the ramp after track-in, fault injection and auto-clear, retries of rejected raises and clears |
-| Frontend | `frontend/src/**/*.test.ts(x)` | 112 | Vitest, Testing Library and jsdom: pages and forms, the operator station, slitting grid, inspection judging and decimal parsing, disposition, genealogy layout, realtime cache updates |
-| End-to-end | `frontend/e2e/demo.spec.ts` | 1 | The 5-minute demo script above, in Chromium against the running Compose stack |
+| Simulator model | `backend/tests/MiniMes.Simulator.Tests` | 32 | `MachineModel`: values within limits while running and back to rest when idle, never a negative speed or pressure at rest, drift, alarm raise and clear, no alarms during the ramp after track-in, fault injection and auto-clear, retries of rejected raises and clears |
+| Frontend | `frontend/src/**/*.test.ts(x)` | 121 | Vitest, Testing Library and jsdom: pages and forms, the operator station, slitting grid, inspection judging and decimal parsing, disposition, genealogy layout, trend time axis, realtime cache updates |
+| End-to-end | `frontend/e2e/demo.spec.ts` | 1 | The demo script above, in Chromium against the running Compose stack |
 
-Last full run: 438 backend tests (`dotnet test backend`), 112 frontend tests in 27 files, and the end-to-end test, all passing. The integration tests start PostgreSQL through Testcontainers, so Docker must be running.
+Last full run: 451 backend tests (`dotnet test backend`), 121 frontend tests in 28 files, and the end-to-end test, all passing. The integration tests start PostgreSQL through Testcontainers, so Docker must be running.
 
 ```bash
 dotnet test backend
@@ -319,7 +336,7 @@ npm test --prefix frontend -- --run
 npm run e2e --prefix frontend
 ```
 
-CI (`.github/workflows/ci.yml`) runs the backend tests, the frontend lint, tests and build, and `docker compose build` on every push and pull request. The end-to-end test needs the full stack running and is run locally.
+CI (`.github/workflows/ci.yml`) runs the backend tests, the frontend lint, tests and build, the README link check and `docker compose build` on every push and pull request. The end-to-end test needs the full stack running and is run locally.
 
 ## Project structure
 
@@ -344,7 +361,7 @@ CI (`.github/workflows/ci.yml`) runs the backend tests, the frontend lint, tests
 │   │   └── components/ui/          shadcn/ui components
 │   ├── e2e/                        Playwright demo walkthrough and its API helpers
 │   └── nginx.conf                  static files, /api and /hubs proxy
-├── docs/screenshots/               README screenshots, written by the end-to-end test
+├── docs/screenshots/               README screenshots, rewritten by the end-to-end test with UPDATE_SCREENSHOTS=1
 ├── scripts/check-readme-links.mjs  checks the README's relative links, with exact case
 ├── docker-compose.yml
 └── .github/workflows/ci.yml
