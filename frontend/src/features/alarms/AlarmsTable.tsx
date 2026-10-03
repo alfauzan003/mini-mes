@@ -6,12 +6,7 @@ import { cn } from '@/lib/utils'
 import type { AlarmDto, AlarmSeverity } from '@/shared/api/types'
 import { formatDuration } from '@/shared/format/duration'
 import { useAcknowledgeAlarm } from './api'
-
-export const SEVERITY_CLASSES: Record<AlarmSeverity, string> = {
-  CRITICAL: 'border-red-200 bg-red-100 text-red-800',
-  MAJOR: 'border-amber-200 bg-amber-100 text-amber-900',
-  WARNING: 'border-slate-300 bg-slate-100 text-slate-700',
-}
+import { alarmDurationSeconds, SEVERITY_CLASSES } from './severity'
 
 export function SeverityBadge({ severity }: { severity: AlarmSeverity }) {
   return (
@@ -19,12 +14,6 @@ export function SeverityBadge({ severity }: { severity: AlarmSeverity }) {
       {severity}
     </Badge>
   )
-}
-
-/** Cleared alarms keep their final duration; active ones grow with `now` (epoch ms). */
-export function alarmDurationSeconds(alarm: AlarmDto, now: number): number {
-  const end = alarm.clearedAt ? Date.parse(alarm.clearedAt) : now
-  return Math.max(0, (end - Date.parse(alarm.raisedAt)) / 1000)
 }
 
 export function AckButton({ alarmId }: { alarmId: string }) {

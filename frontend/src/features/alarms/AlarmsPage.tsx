@@ -31,9 +31,8 @@ function HistoryTab({ canAcknowledge, now }: { canAcknowledge: boolean; now: num
   const [to, setTo] = useState('')
   const badRange = from !== '' && to !== '' && from > to
 
-  // An inverted range is a 400 from the API, so hold the previous filter's results out and explain instead.
+  // History lists every alarm, active or cleared. An inverted range is a 400 from the API, so hold the previous filter's results out and explain instead.
   const alarms = useAlarms({
-    active: false,
     equipment: equipmentCode || undefined,
     severity: severity || undefined,
     from: badRange ? undefined : startOfDay(from),
