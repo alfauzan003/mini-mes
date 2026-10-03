@@ -20,6 +20,12 @@ public sealed class HoldHandler(MesDbContext db, LotQueries queries, ICurrentUse
             return new Error(ErrorCodes.ReasonRequired, "A reason is required to hold a lot.");
         }
 
+        var tooLong = ReasonRules.CheckLength(reason);
+        if (tooLong is not null)
+        {
+            return tooLong;
+        }
+
         var held = await db.ExecuteInTransactionAsync<string>(token => HoldAsync(lotId, reason, token), ct);
         if (!held.IsSuccess)
         {

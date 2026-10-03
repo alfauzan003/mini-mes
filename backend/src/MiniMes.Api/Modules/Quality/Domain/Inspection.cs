@@ -13,6 +13,8 @@ public class Inspection
     /// <summary>Largest magnitude a numeric(12,4) measurement column can hold.</summary>
     internal const decimal MaxMeasuredValue = 99_999_999.9999m;
 
+    private const int MeasuredDecimals = 4;
+
     private readonly List<InspectionMeasurement> _measurements = [];
 
     private Inspection()
@@ -135,15 +137,11 @@ public class Inspection
 
         foreach (var (_, value) in values)
         {
-            var error = QuantityRules.CheckFits(value, "A measured value");
-            if (error is not null)
+            if (decimal.Round(value, MeasuredDecimals) != value || Math.Abs(value) > MaxMeasuredValue)
             {
-                return error;
-            }
-
-            if (Math.Abs(value) > MaxMeasuredValue)
-            {
-                return new Error(ErrorCodes.InvalidQuantity, "A measured value is out of range.");
+                return new Error(
+                    ErrorCodes.InvalidQuantity,
+                    $"A measured value has at most {MeasuredDecimals} decimals and cannot exceed {MaxMeasuredValue}.");
             }
         }
 

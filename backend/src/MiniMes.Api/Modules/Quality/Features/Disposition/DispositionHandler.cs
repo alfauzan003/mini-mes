@@ -27,6 +27,12 @@ public sealed class DispositionHandler(MesDbContext db, LotQueries queries, ICur
             return new Error(ErrorCodes.ReasonRequired, "A reason is required to disposition a lot.");
         }
 
+        var tooLong = ReasonRules.CheckLength(reason);
+        if (tooLong is not null)
+        {
+            return tooLong;
+        }
+
         var decided = await db.ExecuteInTransactionAsync<string>(
             token => DecideAsync(lotId, decision, reason, token), ct);
         if (!decided.IsSuccess)

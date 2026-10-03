@@ -111,6 +111,17 @@ public class InspectionTests
         Assert.Equal(ErrorCodes.InvalidQuantity, Record([(_loading.Id, 20.12345m), (_thickness.Id, 105m)]).Error!.Code);
 
     [Fact]
+    public void Value_with_four_decimals_is_accepted()
+    {
+        var density = TestData.CathodeSpec(OperationCode.Coat, "Density", "g/cm3", 3.35m, 3.55m, 3);
+
+        var result = Record([(density.Id, 3.3505m)], specs: [density]);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(InspectionResult.Pass, result.Value.Result);
+    }
+
+    [Fact]
     public void Negative_value_is_allowed_and_judged()
     {
         var vacuum = TestData.CathodeSpec(OperationCode.Coat, "Vacuum", "kPa", -95m, -85m, 3);

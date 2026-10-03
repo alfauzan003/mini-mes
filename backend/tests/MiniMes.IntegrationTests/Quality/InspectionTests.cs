@@ -4,6 +4,7 @@ using System.Text.Json;
 using MiniMes.Api.Modules.Execution;
 using MiniMes.Api.Modules.Lots.Domain;
 using MiniMes.Api.Modules.Lots.Features.Queries;
+using MiniMes.Api.Modules.Quality;
 using MiniMes.Api.Modules.Quality.Domain;
 using MiniMes.Api.Modules.Quality.Features.Inspections;
 using MiniMes.Api.Modules.WorkOrders.Domain;
@@ -92,6 +93,38 @@ public class InspectionTests(MesApiFactory api) : IAsyncLifetime
         var inspect = Assert.Single(events, e => e.Type == LotEventType.Inspect);
         Assert.Equal("FAIL MX-VISC: Too thick", inspect.Note);
         Assert.Contains(events, e => e.Type == LotEventType.Hold);
+    }
+
+    [Fact]
+    public async Task Failure_reason_over_the_limit_is_rejected_and_stores_nothing()
+    {
+        var driver = new ProductionDriver(api);
+        var (_, slurry) = await ProduceSlurryAsync(driver);
+
+        var response = await driver.InspectAsync(
+            slurry, new Dictionary<string, decimal> { ["Viscosity"] = 9000m, ["Solid content"] = 70m },
+            "MX-VISC", new string('x', ReasonRules.MaxLength + 1));
+
+        await ProductionDriver.AssertErrorAsync(response, 422, "REASON_TOO_LONG");
+        Assert.Empty(await HistoryAsync(await driver.QcAsync(), slurry));
+        Assert.Equal(LotStatus.Wait, (await driver.LotAsync(slurry)).Status);
+    }
+
+    [Fact]
+    public async Task Failure_reason_at_the_limit_with_the_longest_defect_code_is_stored()
+    {
+        var driver = new ProductionDriver(api);
+        var (_, slurry) = await ProduceSlurryAsync(driver);
+        var reason = new string('x', ReasonRules.MaxLength);
+
+        var inspection = await driver.InspectOkAsync(
+            slurry, new Dictionary<string, decimal> { ["Viscosity"] = 9000m, ["Solid content"] = 70m },
+            "MX-SOLID", reason);
+
+        Assert.Equal(reason, inspection.Reason);
+        var events = (await (await driver.OperatorAsync())
+            .GetFromJsonAsync<List<LotEventDto>>($"/api/lots/{slurry}/events", Json, Ct))!;
+        Assert.Equal($"FAIL MX-SOLID: {reason}", Assert.Single(events, e => e.Type == LotEventType.Inspect).Note);
     }
 
     [Fact]

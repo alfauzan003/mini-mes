@@ -4,7 +4,6 @@ using MiniMes.Api.Modules.Lots.Domain;
 using MiniMes.Api.Modules.Lots.Features.Queries;
 using MiniMes.Api.Modules.Quality.Domain;
 using MiniMes.Api.Modules.Quality.Features.Inspections;
-using MiniMes.Api.Modules.WorkOrders.Domain;
 using MiniMes.Api.Shared.Data;
 using MiniMes.Api.Shared.Results;
 
@@ -85,6 +84,11 @@ public sealed class RecordInspectionHandler(
         }
 
         var inspection = recorded.Value;
+        if (inspection.Reason is { } reason && ReasonRules.CheckLength(reason) is { } tooLong)
+        {
+            return tooLong;
+        }
+
         var applied = lot.ApplyInspection(inspection.Result);
         if (!applied.IsSuccess)
         {

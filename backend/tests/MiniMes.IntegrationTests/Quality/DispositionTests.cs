@@ -6,6 +6,7 @@ using MiniMes.Api.Modules.Execution;
 using MiniMes.Api.Modules.Execution.Features.TrackOut;
 using MiniMes.Api.Modules.Lots.Domain;
 using MiniMes.Api.Modules.Lots.Features.Queries;
+using MiniMes.Api.Modules.Quality;
 using MiniMes.Api.Modules.Quality.Domain;
 using MiniMes.Api.Modules.Quality.Features.Inspections;
 using MiniMes.Api.Modules.WorkOrders.Domain;
@@ -96,6 +97,44 @@ public class DispositionTests(MesApiFactory api) : IAsyncLifetime
         await ProductionDriver.AssertErrorAsync(missing, 422, "REASON_REQUIRED");
         await ProductionDriver.AssertErrorAsync(blank, 422, "REASON_REQUIRED");
         Assert.Equal(LotStatus.Wait, (await driver.LotAsync(slurry)).Status);
+    }
+
+    [Fact]
+    public async Task Hold_reason_over_the_limit_is_rejected_and_one_at_the_limit_is_stored()
+    {
+        var driver = new ProductionDriver(api);
+        var (_, slurry) = await ProduceSlurryAsync(driver);
+        var qc = await driver.QcAsync();
+
+        var tooLong = await HoldAsync(qc, slurry, new string('x', ReasonRules.MaxLength + 1));
+
+        await ProductionDriver.AssertErrorAsync(tooLong, 422, "REASON_TOO_LONG");
+        Assert.Equal(LotStatus.Wait, (await driver.LotAsync(slurry)).Status);
+        Assert.DoesNotContain(await EventsAsync(qc, slurry), e => e.Type == LotEventType.Hold);
+
+        var atLimit = new string('x', ReasonRules.MaxLength);
+        Assert.Equal(HttpStatusCode.OK, (await HoldAsync(qc, slurry, atLimit)).StatusCode);
+        Assert.Equal(atLimit, Assert.Single(await EventsAsync(qc, slurry), e => e.Type == LotEventType.Hold).Note);
+    }
+
+    [Fact]
+    public async Task Disposition_reason_over_the_limit_is_rejected_and_one_at_the_limit_is_stored()
+    {
+        var driver = new ProductionDriver(api);
+        var (_, roll) = await ProduceCoatedRollAsync(driver, "BB-0001");
+        await FailLoadingAsync(driver, roll);
+        var qc = await driver.QcAsync();
+
+        var tooLong = await DispositionAsync(qc, roll, Disposition.Release, new string('x', ReasonRules.MaxLength + 1));
+
+        await ProductionDriver.AssertErrorAsync(tooLong, 422, "REASON_TOO_LONG");
+        Assert.Equal(LotStatus.Hold, (await driver.LotAsync(roll)).Status);
+        Assert.Null(Assert.Single(await HistoryAsync(qc, roll)).Disposition);
+
+        var atLimit = new string('x', ReasonRules.MaxLength);
+        var released = await DispositionAsync(qc, roll, Disposition.Release, atLimit);
+        Assert.Equal(HttpStatusCode.OK, released.StatusCode);
+        Assert.Equal(atLimit, Assert.Single(await HistoryAsync(qc, roll)).DispositionReason);
     }
 
     [Fact]
