@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAlarms } from '@/features/alarms/api'
 import { useEquipment, useWorkOrders } from '@/features/work-orders/api'
-import { cn } from '@/lib/utils'
+import { progressPercent } from '@/features/work-orders/formatters'
 import type { AlarmDto, AlarmSeverity, OperationCode } from '@/shared/api/types'
 import { formatDuration } from '@/shared/format/duration'
 import { useLatestReadings } from '@/shared/realtime/useLatestReadings'
@@ -79,7 +79,7 @@ function RunningWorkOrdersPanel() {
         )}
         <ul className="space-y-3">
           {running.map((wo) => {
-            const percent = wo.targetQty > 0 ? Math.min(100, Math.round((wo.goodCount / wo.targetQty) * 100)) : 0
+            const percent = progressPercent(wo.goodCount, wo.targetQty)
             return (
               <li key={wo.id} className="space-y-1">
                 <div className="flex items-center justify-between gap-2">
@@ -94,10 +94,10 @@ function RunningWorkOrdersPanel() {
                   aria-label={`${wo.number} progress`}
                   aria-valuemin={0}
                   aria-valuemax={wo.targetQty}
-                  aria-valuenow={wo.goodCount}
+                  aria-valuenow={Math.min(wo.goodCount, wo.targetQty)}
                   className="h-2 overflow-hidden rounded-full bg-muted"
                 >
-                  <div className={cn('h-full bg-blue-500')} style={{ width: `${percent}%` }} />
+                  <div className="h-full bg-blue-500" style={{ width: `${percent}%` }} />
                 </div>
                 <p className="text-xs tabular-nums text-muted-foreground">
                   {wo.goodCount}/{wo.targetQty}
