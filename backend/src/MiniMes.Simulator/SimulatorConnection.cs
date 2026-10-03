@@ -18,6 +18,14 @@ public static class SimulatorConnection
             })
             .AddJsonProtocol(p => p.PayloadSerializerOptions.Converters.Add(
                 new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseUpper)))
-            .WithAutomaticReconnect()
+            .WithAutomaticReconnect(new RetryForeverPolicy())
             .Build();
+}
+
+/// <summary>Retries every 5 s without end, so an API outage of any length ends in a reconnect and a reload.</summary>
+public sealed class RetryForeverPolicy : IRetryPolicy
+{
+    public static readonly TimeSpan Delay = TimeSpan.FromSeconds(5);
+
+    public TimeSpan? NextRetryDelay(RetryContext retryContext) => Delay;
 }

@@ -126,4 +126,35 @@ public class SimulatorSessionTests(MesApiFactory api) : IAsyncLifetime
         var active = await admin.GetFromJsonAsync<JsonElement>("/api/alarms?active=true", Ct);
         Assert.Empty(active.EnumerateArray());
     }
+
+    [Fact]
+    public void Reconnect_policy_never_gives_up()
+    {
+        var policy = new RetryForeverPolicy();
+
+        foreach (var attempt in new[] { 0L, 3L, 4L, 1000L })
+        {
+            var delay = policy.NextRetryDelay(new RetryContext
+            {
+                PreviousRetryCount = attempt,
+                ElapsedTime = TimeSpan.FromHours(2),
+                RetryReason = new HttpRequestException()
+            });
+            Assert.Equal(TimeSpan.FromSeconds(5), delay);
+        }
+    }
+
+    [Fact]
+    public async Task Reload_after_reconnect_picks_up_changed_status()
+    {
+        var wo = await _driver.CreateReleasedWorkOrderAsync();
+        var raws = await _driver.MaterialLotsAsync("NCM811", "PVDF", "SUPER-P", "NMP");
+        await _connection.StopAsync(Ct);
+        await _driver.TrackInOkAsync("MX01", wo, OperationCode.Mix, raws);
+
+        await _connection.StartAsync(Ct);
+        await _session.LoadAsync(Ct);
+
+        Assert.Equal(MiniMes.Simulator.EquipmentStatus.Running, _session.StatusOf("MX01"));
+    }
 }

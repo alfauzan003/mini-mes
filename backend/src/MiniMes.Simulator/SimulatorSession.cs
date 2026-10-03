@@ -91,20 +91,26 @@ public sealed class SimulatorSession
 
         foreach (var (code, tick) in ticks)
         {
-            try
-            {
-                if (tick.Readings.Count > 0)
-                    await _connection.InvokeAsync("ReportReadings", code, tick.Readings, ct);
-                // Clear before raise: a first tick can both drop an adopted alarm and raise an injected one.
-                foreach (var alarm in tick.Clear)
-                    await _connection.InvokeAsync("ClearAlarm", code, alarm, ct);
-                foreach (var alarm in tick.Raise)
-                    await _connection.InvokeAsync("RaiseAlarm", code, alarm, ct);
-            }
-            catch (HubException ex)
-            {
-                _logger.LogWarning("Hub rejected a report for {Code}: {Message}", code, ex.Message);
-            }
+            // Each call stands alone: the model already advanced, so a failed report must not skip a Clear.
+            if (tick.Readings.Count > 0)
+                await SendAsync(code, "ReportReadings", [code, tick.Readings], ct);
+            // Clear before raise: a first tick can both drop an adopted alarm and raise an injected one.
+            foreach (var alarm in tick.Clear)
+                await SendAsync(code, "ClearAlarm", [code, alarm], ct);
+            foreach (var alarm in tick.Raise)
+                await SendAsync(code, "RaiseAlarm", [code, alarm], ct);
+        }
+    }
+
+    private async Task SendAsync(string code, string method, object?[] args, CancellationToken ct)
+    {
+        try
+        {
+            await _connection.InvokeCoreAsync(method, args, ct);
+        }
+        catch (HubException ex)
+        {
+            _logger.LogWarning(ex, "Hub rejected {Method} for {Code}", method, code);
         }
     }
 }
