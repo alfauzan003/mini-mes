@@ -1,5 +1,6 @@
-import { ClipboardList, Cog, Factory, LayoutDashboard, LogOut, Package, ShieldCheck, Waypoints, type LucideIcon } from 'lucide-react'
+import { ClipboardList, Cog, Factory, LayoutDashboard, LogOut, Package, ShieldCheck, Siren, Waypoints, type LucideIcon } from 'lucide-react'
 import { NavLink, Outlet } from 'react-router'
+import { useAlarms } from '@/features/alarms/api'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { Role } from '@/shared/api/types'
@@ -16,12 +17,25 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: 'all' },
   { to: '/equipment', label: 'Equipment', icon: Cog, roles: 'all' },
+  { to: '/alarms', label: 'Alarms', icon: Siren, roles: 'all' },
   { to: '/work-orders', label: 'Work Orders', icon: ClipboardList, roles: 'all' },
   { to: '/station', label: 'Operator Station', icon: Factory, roles: ['OPERATOR', 'ADMIN'] },
   { to: '/quality', label: 'Quality', icon: ShieldCheck, roles: 'all' },
   { to: '/lots', label: 'WIP / Lots', icon: Waypoints, roles: 'all' },
   { to: '/carriers', label: 'Carriers', icon: Package, roles: 'all' },
 ]
+
+function ActiveAlarmBadge() {
+  const alarms = useAlarms({ active: true })
+  const count = alarms.data?.length ?? 0
+  if (count === 0) return null
+  return (
+    <span className="ml-auto min-w-5 rounded-full bg-red-600 px-1.5 text-center text-xs font-semibold text-white">
+      <span aria-hidden="true">{count}</span>
+      <span className="sr-only">{`${count} active ${count === 1 ? 'alarm' : 'alarms'}`}</span>
+    </span>
+  )
+}
 
 export function AppLayout() {
   const { user, logout } = useAuth()
@@ -45,6 +59,7 @@ export function AppLayout() {
             >
               <Icon className="size-4" />
               {label}
+              {to === '/alarms' && <ActiveAlarmBadge />}
             </NavLink>
           ))}
         </nav>

@@ -5,13 +5,14 @@ import { Label } from '@/components/ui/label'
 interface ScanInputProps {
   label: string
   onScan: (code: string) => void
+  disabled?: boolean
 }
 
 /**
  * Barcode-wedge friendly field: a scanner types the code and presses Enter. The code is trimmed and
  * upper-cased, the field clears and keeps focus so the next scan can follow immediately.
  */
-export function ScanInput({ label, onScan }: ScanInputProps) {
+export function ScanInput({ label, onScan, disabled }: ScanInputProps) {
   const id = useId()
   const [value, setValue] = useState('')
 
@@ -23,6 +24,7 @@ export function ScanInput({ label, onScan }: ScanInputProps) {
       <Input
         id={id}
         value={value}
+        disabled={disabled}
         autoComplete="off"
         autoCapitalize="characters"
         spellCheck={false}

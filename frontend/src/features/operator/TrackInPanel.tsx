@@ -14,17 +14,19 @@ const SCAN_HINT: Record<OperationCode, string> = {
 interface TrackInPanelProps {
   operation: OperationCode
   submitting: boolean
+  disabled?: boolean
   onTrackIn: (inputs: string[]) => void
 }
 
 /** Collects scanned lot IDs or carrier codes into a removable list, then submits them as one track-in. */
-export function TrackInPanel({ operation, submitting, onTrackIn }: TrackInPanelProps) {
+export function TrackInPanel({ operation, submitting, disabled = false, onTrackIn }: TrackInPanelProps) {
   const [scans, setScans] = useState<string[]>([])
 
   return (
     <div className="space-y-4">
       <ScanInput
         label="Scan lot or carrier"
+        disabled={disabled}
         onScan={(code) => setScans((current) => (current.includes(code) ? current : [...current, code]))}
       />
       <p className="text-sm text-muted-foreground">{SCAN_HINT[operation]}</p>
@@ -51,7 +53,7 @@ export function TrackInPanel({ operation, submitting, onTrackIn }: TrackInPanelP
       <Button
         size="lg"
         className="min-h-12 w-full text-base"
-        disabled={scans.length === 0 || submitting}
+        disabled={scans.length === 0 || submitting || disabled}
         onClick={() => onTrackIn(scans)}
       >
         Track in
