@@ -13,8 +13,9 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const readme = path.resolve(root, process.argv[2] ?? 'README.md')
 const text = fs.readFileSync(readme, 'utf8')
 
-// Fenced code blocks can hold Markdown-looking text that is not a link.
-const prose = text.replace(/^(`{3,}|~{3,})[^\n]*\n[\s\S]*?^\1[ \t]*$/gm, '')
+// Fenced code blocks can hold Markdown-looking text that is not a link. The closing fence may end in a carriage return when
+// the file was checked out with CRLF line endings.
+const prose = text.replace(/^(`{3,}|~{3,})[^\n]*\n[\s\S]*?^\1[ \t\r]*$/gm, '')
 
 const targets = new Set()
 // Inline links and images: [text](target) and ![alt](target "title").

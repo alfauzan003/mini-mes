@@ -31,6 +31,8 @@ jobs:
       - run: npm run lint
       - run: npm test -- --run
       - run: npm run build
+      - name: Check README links
+        run: node ../scripts/check-readme-links.mjs
 
   docker:
     runs-on: ubuntu-latest
