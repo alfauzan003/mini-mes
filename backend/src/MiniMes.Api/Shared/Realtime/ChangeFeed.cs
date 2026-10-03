@@ -90,6 +90,13 @@ public sealed class ChangeFeed(IRealtimePublisher publisher, ILogger<ChangeFeed>
             events.AddRange(changes.Lots.Select(l => Shopfloor(RealtimeMethods.LotChanged, l)));
             events.AddRange(changes.WorkOrders.Select(w => Shopfloor(RealtimeMethods.WorkOrderProgressed, w)));
 
+            // Sent before the alarm lookup so a slow query cannot hold back the equipment state the simulators wait on.
+            if (events.Count > 0)
+            {
+                await publisher.PublishAsync(events, ct);
+                events = [];
+            }
+
             Guid[] alarmIds = [.. changes.AlarmsRaised, .. changes.AlarmsCleared, .. changes.AlarmsAcknowledged];
             if (alarmIds.Length > 0)
             {
@@ -99,7 +106,10 @@ public sealed class ChangeFeed(IRealtimePublisher publisher, ILogger<ChangeFeed>
                 AddAlarms(events, RealtimeMethods.AlarmAcknowledged, changes.AlarmsAcknowledged, alarms);
             }
 
-            await publisher.PublishAsync(events, ct);
+            if (events.Count > 0)
+            {
+                await publisher.PublishAsync(events, ct);
+            }
         }
         catch (Exception ex)
         {

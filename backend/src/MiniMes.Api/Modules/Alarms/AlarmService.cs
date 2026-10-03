@@ -13,13 +13,15 @@ namespace MiniMes.Api.Modules.Alarms;
 public class AlarmService(MesDbContext db, TimeProvider time)
 {
     private const string UniqueViolation = "23505";
+    private const int MaxAttempts = 3;
 
     /// <summary>Raises the alarm, or returns the ID of the one already active for that equipment and code.</summary>
     public async Task<Result<Guid>> RaiseAsync(string equipmentCode, string alarmCode, CancellationToken ct)
     {
         try
         {
-            return await db.ExecuteInTransactionAsync(token => RaiseCoreAsync(equipmentCode, alarmCode, token), ct);
+            return await RetryOnConcurrencyAsync(
+                () => db.ExecuteInTransactionAsync(token => RaiseCoreAsync(equipmentCode, alarmCode, token), ct));
         }
         catch (Exception ex) when (ex is DbUpdateConcurrencyException or DbUpdateException
             { InnerException: PostgresException { SqlState: UniqueViolation } })
@@ -36,6 +38,27 @@ public class AlarmService(MesDbContext db, TimeProvider time)
     }
 
     public async Task<Result> ClearAsync(string equipmentCode, string alarmCode, CancellationToken ct) =>
+        await RetryOnConcurrencyAsync(() => ClearOnceAsync(equipmentCode, alarmCode, ct));
+
+    /// <summary>
+    /// An operator ack or a track-out can commit between our read and write; the failed transaction left a clean
+    /// change tracker, so running the work again reloads fresh rows and decides on what is now true.
+    /// </summary>
+    private static async Task<T> RetryOnConcurrencyAsync<T>(Func<Task<T>> attempt)
+    {
+        for (var tries = 1; ; tries++)
+        {
+            try
+            {
+                return await attempt();
+            }
+            catch (DbUpdateConcurrencyException) when (tries < MaxAttempts)
+            {
+            }
+        }
+    }
+
+    private async Task<Result> ClearOnceAsync(string equipmentCode, string alarmCode, CancellationToken ct) =>
         await db.ExecuteInTransactionAsync(async token =>
         {
             var equipment = await db.Set<EquipmentEntity>().SingleOrDefaultAsync(e => e.Code == equipmentCode, token);

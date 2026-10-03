@@ -1,9 +1,12 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using MiniMes.Api.Modules.Alarms;
 using MiniMes.Api.Modules.Alarms.Domain;
 using MiniMes.Api.Modules.Equipment.Domain;
 using MiniMes.Api.Modules.Execution;
+using MiniMes.Api.Modules.Identity;
 using MiniMes.Api.Modules.Execution.Features.TrackOut;
 using MiniMes.Api.Modules.WorkOrders.Domain;
 using MiniMes.Api.Shared.Data;
@@ -195,5 +198,59 @@ public class AlarmServiceTests(MesApiFactory api) : IAsyncLifetime
 
         await ClearOkAsync("MX01", "MX-AGITATOR-FAULT");
         Assert.Equal(EquipmentStatus.Maintenance, await StatusAsync("MX01"));
+    }
+
+    /// <summary>Runs <paramref name="onFirstSave"/> once, just before the first SaveChanges, to simulate a concurrent writer.</summary>
+    private sealed class InterleavingInterceptor(Func<Task> onFirstSave) : SaveChangesInterceptor
+    {
+        private int _fired;
+
+        public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Exchange(ref _fired, 1) == 0)
+            {
+                await onFirstSave();
+            }
+
+            return result;
+        }
+    }
+
+    private AlarmService InterleavedService(Func<Task> onFirstSave)
+    {
+        var options = new DbContextOptionsBuilder<MesDbContext>()
+            .UseNpgsql(api.Services.GetRequiredService<IConfiguration>().GetConnectionString("Mes"))
+            .UseSnakeCaseNamingConvention()
+            .AddInterceptors(new InterleavingInterceptor(onFirstSave))
+            .Options;
+        return new AlarmService(new MesDbContext(options, TimeProvider.System), TimeProvider.System);
+    }
+
+    private async Task AcknowledgeConcurrentlyAsync(Guid alarmId)
+    {
+        await using var scope = api.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        var alarm = await db.Set<Alarm>().SingleAsync(a => a.Id == alarmId, Ct);
+        Assert.True(alarm.Acknowledge(await db.Set<User>().Select(u => u.Id).FirstAsync(Ct), DateTimeOffset.UtcNow).IsSuccess);
+        await db.SaveChangesAsync(Ct);
+    }
+
+    [Fact]
+    public async Task Clear_retries_when_the_alarm_is_changed_concurrently_and_equipment_recovers()
+    {
+        var alarmId = await RaiseOkAsync("CT01", "CT-WEB-BREAK");
+        Assert.Equal(EquipmentStatus.Down, await StatusAsync("CT01"));
+        var service = InterleavedService(() => AcknowledgeConcurrentlyAsync(alarmId));
+
+        var result = await service.ClearAsync("CT01", "CT-WEB-BREAK", Ct);
+
+        Assert.True(result.IsSuccess, result.Error?.Code);
+        Assert.Equal(EquipmentStatus.Idle, await StatusAsync("CT01"));
+        await using var scope = api.Services.CreateAsyncScope();
+        var alarm = await scope.ServiceProvider.GetRequiredService<MesDbContext>()
+            .Set<Alarm>().AsNoTracking().SingleAsync(a => a.Id == alarmId, Ct);
+        Assert.NotNull(alarm.ClearedAt);
+        Assert.NotNull(alarm.AcknowledgedAt);
     }
 }
