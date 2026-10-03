@@ -45,4 +45,5 @@ public static class ErrorCodes
     public const string AlarmNotFound = "ALARM_NOT_FOUND";
     public const string AlarmAlreadyAcknowledged = "ALARM_ALREADY_ACKNOWLEDGED";
     public const string AlarmNotActive = "ALARM_NOT_ACTIVE";
+    public const string UnknownParameter = "UNKNOWN_PARAMETER";
 }

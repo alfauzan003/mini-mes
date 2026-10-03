@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using MiniMes.Api.Modules.Alarms.Domain;
 using MiniMes.Api.Modules.Carriers.Domain;
+using MiniMes.Api.Modules.Equipment.Domain;
 using MiniMes.Api.Modules.Identity;
 using MiniMes.Api.Modules.Lots.Domain;
 using MiniMes.Api.Modules.Lots.LotIds;
@@ -79,6 +80,23 @@ public class DemoSeeder(MesDbContext db, IConfiguration configuration, LotIdGene
         (OperationCode.Slit, "SL-BLADE-FAULT", AlarmSeverity.Critical, "Slitting blade fault")
     ];
 
+    private static readonly (OperationCode Operation, string Name, ParameterKind Kind, string Unit,
+        decimal Setpoint, decimal Low, decimal High, string? LowAlarm, string? HighAlarm)[] ParameterSeed =
+    [
+        (OperationCode.Mix, "Slurry temp", ParameterKind.Temperature, "°C", 25m, 20m, 30m, null, "MX-TEMP-HIGH"),
+        (OperationCode.Mix, "Agitator speed", ParameterKind.Speed, "rpm", 1500m, 1200m, 1800m, null, null),
+        (OperationCode.Mix, "Vacuum", ParameterKind.Pressure, "kPa", 85m, 75m, 95m, "MX-VAC-LOW", null),
+        (OperationCode.Coat, "Dryer temp", ParameterKind.Temperature, "°C", 130m, 120m, 140m, null, "CT-TEMP-HIGH"),
+        (OperationCode.Coat, "Line speed", ParameterKind.Speed, "m/min", 40m, 35m, 45m, null, null),
+        (OperationCode.Coat, "Slot-die pressure", ParameterKind.Pressure, "kPa", 150m, 130m, 170m, "CT-DIE-PRESS-LOW", null),
+        (OperationCode.Cal, "Roll temp", ParameterKind.Temperature, "°C", 90m, 80m, 100m, null, "CP-TEMP-HIGH"),
+        (OperationCode.Cal, "Line speed", ParameterKind.Speed, "m/min", 30m, 25m, 35m, null, null),
+        (OperationCode.Cal, "Nip pressure", ParameterKind.Pressure, "ton", 300m, 270m, 330m, null, "CP-NIP-PRESS-HIGH"),
+        (OperationCode.Slit, "Motor temp", ParameterKind.Temperature, "°C", 45m, 30m, 60m, null, "SL-TEMP-HIGH"),
+        (OperationCode.Slit, "Line speed", ParameterKind.Speed, "m/min", 80m, 70m, 90m, null, null),
+        (OperationCode.Slit, "Web tension", ParameterKind.Pressure, "N", 120m, 100m, 140m, "SL-TENSION-LOW", null)
+    ];
+
     public async Task SeedAsync(CancellationToken ct)
     {
         await SeedUsersAsync(ct);
@@ -89,6 +107,7 @@ public class DemoSeeder(MesDbContext db, IConfiguration configuration, LotIdGene
         await SeedCarriersAsync(ct);
         await SeedDefectCodesAsync(ct);
         await SeedAlarmCodesAsync(ct);
+        await SeedParameterDefinitionsAsync(ct);
         await db.SaveChangesAsync(ct);
         if (configuration.GetValue<bool>("Seed:InspectionSpecs"))
         {
@@ -138,6 +157,17 @@ public class DemoSeeder(MesDbContext db, IConfiguration configuration, LotIdGene
         }
 
         db.Set<AlarmCode>().AddRange(AlarmCodeSeed.Select(a => new AlarmCode(a.Code, a.Message, a.Severity, a.Operation)));
+    }
+
+    private async Task SeedParameterDefinitionsAsync(CancellationToken ct)
+    {
+        if (await db.Set<ParameterDefinition>().AnyAsync(ct))
+        {
+            return;
+        }
+
+        db.Set<ParameterDefinition>().AddRange(ParameterSeed.Select(p => new ParameterDefinition(
+            p.Operation, p.Name, p.Kind, p.Unit, p.Setpoint, p.Low, p.High, (int)p.Kind, p.LowAlarm, p.HighAlarm)));
     }
 
     private async Task SeedUsersAsync(CancellationToken ct)

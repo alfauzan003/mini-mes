@@ -35,6 +35,8 @@ public sealed class MesApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
         builder.UseSetting("Seed:DemoPassword", "test-pass");
         builder.UseSetting("Seed:InspectionSpecs", "false");
         builder.UseSetting("Demo:EnableQuickLogin", "true");
+        // Keeps the retention service's startup purge from racing tests that insert old rows.
+        builder.UseSetting("Parameters:RetentionInitialDelaySeconds", "3600");
     }
 
     public async Task ResetDatabaseAsync()
