@@ -72,7 +72,7 @@ IDs are dated with the plant's calendar date (time zone `Asia/Jakarta` by defaul
 | FOIL | `F{C\|A}-yyMMdd-nnn` | `FC-261003-002` |
 | SLURRY | `S{C\|A}-yyMMdd-{mixer}-nn` | `SC-261003-MX01-01` |
 | ELECTRODE | `E{C\|A}-yyMMdd-{coater}-nnn` | `EC-261003-CT01-001` |
-| PANCAKE | `{electrode lot}-{lane, 2 digits}` | `EC-261003-CT01-001-03` |
+| PANCAKE | `{electrode lot}-{lane, 2 digits}` | `EC-261003-CT01-001-01` |
 
 ### Example genealogy
 
@@ -286,7 +286,7 @@ Clicking through it by hand takes about ten minutes, most of it in step 7. The s
    - As QC, inspect the roll from the queue: Loading weight `20` → PASS.
    - As Operator on **CP01**, select the work order, scan the bobbin code (or the roll ID) → **Track in**, then Empty carrier: the next empty bobbin, Good (m) `990`, Reject (m) `10` → **Produce** → **Track out** → **Confirm track out**. Notice the roll keeps its lot ID and moves to the new bobbin, and the old bobbin is free again.
    - As QC, inspect the calendered roll: Thickness `120`, Density `3.45` → PASS.
-   - As Operator on **SL01**, select the work order, scan the roll → **Track in**. In the lane grid, give lanes 1 and 2 one empty pancake core each (`PC-…`), Good m `120` and Reject m `0`. The order needs only two pancakes, but the grid wants a quantity on every lane, so leave lanes 3 to 8 without a core and enter Reject m `120` → **Produce** → **Track out** → **Confirm track out**. Notice two pancake lots `<roll>-01` and `<roll>-02` appear, and the whole roll is consumed.
+   - As Operator on **SL01**, select the work order, scan the roll → **Track in**. In the lane grid, give lanes 1 and 2 one empty pancake core each (`PC-…`), Good m `120` and Reject m `0`. SL01 slits the roll into eight lanes at once; the order needs two pancakes, so wind lanes 1 and 2 onto cores and scrap lanes 3 to 8 (Reject m `120`, no core) → **Produce** → **Track out** → **Confirm track out**. Notice two pancake lots `<roll>-01` and `<roll>-02` appear, and the whole roll is consumed.
    - As QC, inspect pancake `-01` with Width `100` and Burr height `4` → PASS. Notice the work order's progress is now 1 / 2.
    - Inspect pancake `-02` with Width `100` and Burr height `10`. The limit is 8 µm, so the result turns FAIL. Pick Defect code `SL-BURR`, enter Reason `Burr height above the upper limit` → **Submit inspection**. Notice the toast says the lot is on hold.
    - Open **Quality** → **On hold** and click **Disposition** on pancake `-02`. Choose **Release**, Reason `Burr re-measured within the customer tolerance` → **Release lot**. A toast confirms `<pancake> released`.

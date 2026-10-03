@@ -190,9 +190,9 @@ test('demo walkthrough', async ({ page, request }) => {
   await expect(page.getByText('1. Choose the work order')).toBeVisible()
 
   // 7. The rest of the line through the API: QC passes the roll, Operator calenders it on CP01 (990 m onto an empty
-  //    bobbin), QC passes it, Operator slits it on SL01 into 2 pancakes of 120 m on empty cores (lanes 3 to 8 are
-  //    not needed: reject only, as the lane grid requires a quantity on every lane). QC passes pancake -01 and
-  //    fails -02 (burr above the limit), which puts it on HOLD.
+  //    bobbin), QC passes it, Operator slits it on SL01 into 2 pancakes of 120 m on empty cores (SL01 slits eight
+  //    lanes at once, so lanes 3 to 8 are scrapped: reject only, no core). QC passes pancake -01 and fails -02
+  //    (burr above the limit), which puts it on HOLD.
   const qc = await token(request, 'qc')
   const wo = await workOrder(request, planner, workOrderId)
   const stepId = (operation: string) => wo.operations.find((o) => o.operation === operation)!.id
