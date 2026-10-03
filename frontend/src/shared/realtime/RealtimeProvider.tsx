@@ -25,6 +25,11 @@ const RECONNECT_REFRESH_KEYS = [
   ['readings', 'latest'],
 ]
 
+/** Capped exponential backoff: 1 s, 2 s, 4 s ... 30 s, never giving up. */
+function retryDelayMs(previousRetryCount: number): number {
+  return Math.min(30_000, 1000 * 2 ** previousRetryCount)
+}
+
 export function RealtimeProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
   const queryClient = useQueryClient()
@@ -39,7 +44,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
     const connection = new HubConnectionBuilder()
       .withUrl('/hubs/shopfloor', { accessTokenFactory: () => readAuth()?.token ?? '' })
       .withHubProtocol(new JsonHubProtocol())
-      .withAutomaticReconnect()
+      .withAutomaticReconnect({ nextRetryDelayInMilliseconds: (ctx) => retryDelayMs(ctx.previousRetryCount) })
       .configureLogging(LogLevel.Warning)
       .build()
 
@@ -63,29 +68,55 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       )
     })
 
+    const refreshAll = () => {
+      // Events may have been missed while disconnected.
+      for (const queryKey of RECONNECT_REFRESH_KEYS) void queryClient.invalidateQueries({ queryKey })
+    }
+
+    // Retries start() with capped backoff until it succeeds or the effect is cleaned up.
+    let retryTimer: ReturnType<typeof setTimeout> | undefined
+    let failedAttempts = 0
+    let missedEvents = false
+    const scheduleStart = () => {
+      missedEvents = true
+      setStatus('reconnecting')
+      retryTimer = setTimeout(attemptStart, retryDelayMs(failedAttempts++))
+    }
+    const attemptStart = () => {
+      retryTimer = undefined
+      if (cancelled) return
+      connection
+        .start()
+        .then(() => {
+          if (cancelled) return
+          failedAttempts = 0
+          setStatus('connected')
+          if (missedEvents) refreshAll()
+          missedEvents = false
+        })
+        .catch(() => {
+          if (!cancelled) scheduleStart()
+        })
+    }
+
     connection.onreconnecting(() => setStatus('reconnecting'))
     connection.onreconnected(() => {
       setStatus('connected')
-      // Events may have been missed while disconnected.
-      for (const queryKey of RECONNECT_REFRESH_KEYS) void queryClient.invalidateQueries({ queryKey })
+      refreshAll()
     })
     connection.onclose(() => {
-      if (!cancelled) setStatus('disconnected')
+      if (cancelled) return
+      // The server closed the connection or reconnecting was abandoned: start over.
+      failedAttempts = 0
+      scheduleStart()
     })
 
     setStatus('reconnecting')
-    connection
-      .start()
-      .then(() => {
-        if (!cancelled) setStatus('connected')
-      })
-      .catch(() => {
-        // The initial connect failed; automatic reconnect only covers an established connection.
-        if (!cancelled) setStatus('disconnected')
-      })
+    attemptStart()
 
     return () => {
       cancelled = true
+      clearTimeout(retryTimer)
       for (const method of [
         'EquipmentStatusChanged',
         'LotChanged',
