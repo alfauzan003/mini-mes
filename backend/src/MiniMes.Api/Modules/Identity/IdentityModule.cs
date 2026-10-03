@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
+using MiniMes.Api.Modules.Equipment.Machine;
 using Microsoft.IdentityModel.Tokens;
 using MiniMes.Api.Modules.Identity.Features.DemoLogin;
 using MiniMes.Api.Modules.Identity.Features.Login;
@@ -22,7 +24,15 @@ public static class IdentityModule
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUser, CurrentUser>();
 
-        services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
+        services.AddOptions<MachineOptions>()
+            .BindConfiguration(MachineOptions.SectionName)
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddJwtBearer()
+            .AddScheme<AuthenticationSchemeOptions, MachineKeyAuthenticationHandler>(
+                MachineKeyAuthenticationHandler.SchemeName, null);
 
         // Resolved lazily so test hosts can override Jwt settings after Program starts.
         services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
@@ -37,6 +47,21 @@ public static class IdentityModule
                     NameClaimType = "name",
                     RoleClaimType = "role",
                     ClockSkew = TimeSpan.FromMinutes(1)
+                };
+                bearer.Events = new JwtBearerEvents
+                {
+                    // Browsers cannot set headers on WebSocket and server-sent event requests, so SignalR sends
+                    // the token in the query string. Only hub paths accept it there.
+                    OnMessageReceived = context =>
+                    {
+                        var token = context.Request.Query["access_token"].ToString();
+                        if (token.Length > 0 && context.Request.Path.StartsWithSegments("/hubs"))
+                        {
+                            context.Token = token;
+                        }
+
+                        return Task.CompletedTask;
+                    }
                 };
             });
 

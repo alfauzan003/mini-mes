@@ -17,6 +17,7 @@ public class EquipmentConfiguration : IEntityTypeConfiguration<EquipmentEntity>
         builder.Property(e => e.Operation).HasConversion<string>().HasMaxLength(16);
         builder.Property(e => e.Status).HasConversion<string>().HasMaxLength(16);
         builder.Property(e => e.StatusBeforeDown).HasConversion<string>().HasMaxLength(16);
+        builder.Ignore(e => e.PendingStatusChanges);
         builder.Property(e => e.Version).IsRowVersion();
     }
 }

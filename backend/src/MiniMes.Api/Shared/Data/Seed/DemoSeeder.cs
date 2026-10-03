@@ -1,9 +1,12 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using MiniMes.Api.Modules.Alarms.Domain;
 using MiniMes.Api.Modules.Carriers.Domain;
+using MiniMes.Api.Modules.Equipment.Domain;
 using MiniMes.Api.Modules.Identity;
 using MiniMes.Api.Modules.Lots.Domain;
 using MiniMes.Api.Modules.Lots.LotIds;
+using MiniMes.Api.Modules.Quality.Domain;
 using MiniMes.Api.Modules.WorkOrders.Domain;
 using MiniMes.Api.Shared.Results;
 using EquipmentEntity = MiniMes.Api.Modules.Equipment.Domain.Equipment;
@@ -25,6 +28,75 @@ public class DemoSeeder(MesDbContext db, IConfiguration configuration, LotIdGene
         ("admin", "Demo Admin", Role.Admin)
     ];
 
+    private const string CathodeCode = "CATH-NCM811";
+    private const string AnodeCode = "ANOD-GRAPHITE";
+
+    private sealed record Limits(decimal Lsl, decimal Usl);
+
+    private sealed record SpecRow(OperationCode Operation, string Item, string Unit, Limits Cathode, Limits Anode);
+
+    private static readonly SpecRow[] SpecSeed =
+    [
+        new(OperationCode.Mix, "Viscosity", "cP", new(4000m, 8000m), new(2000m, 4000m)),
+        new(OperationCode.Mix, "Solid content", "%", new(68m, 72m), new(48m, 52m)),
+        new(OperationCode.Coat, "Loading weight", "mg/cm²", new(19.5m, 20.5m), new(9.8m, 10.4m)),
+        new(OperationCode.Cal, "Thickness", "µm", new(118m, 122m), new(128m, 132m)),
+        new(OperationCode.Cal, "Density", "g/cm³", new(3.35m, 3.55m), new(1.55m, 1.70m)),
+        new(OperationCode.Slit, "Width", "mm", new(99.8m, 100.2m), new(101.8m, 102.2m)),
+        new(OperationCode.Slit, "Burr height", "µm", new(0m, 8m), new(0m, 8m))
+    ];
+
+    private static readonly (string Code, string Description, OperationCode? Operation)[] DefectCodeSeed =
+    [
+        ("MX-VISC", "Viscosity out of spec", OperationCode.Mix),
+        ("MX-SOLID", "Solid content out of spec", OperationCode.Mix),
+        ("MX-AGGL", "Agglomerates", OperationCode.Mix),
+        ("CT-LOAD", "Loading weight out of spec", OperationCode.Coat),
+        ("CT-PINHOLE", "Pinholes", OperationCode.Coat),
+        ("CT-STREAK", "Streaks", OperationCode.Coat),
+        ("CT-EDGE", "Edge bead", OperationCode.Coat),
+        ("CP-THICK", "Thickness out of spec", OperationCode.Cal),
+        ("CP-DENS", "Density out of spec", OperationCode.Cal),
+        ("CP-WRINKLE", "Wrinkles", OperationCode.Cal),
+        ("SL-WIDTH", "Width out of spec", OperationCode.Slit),
+        ("SL-BURR", "Burr", OperationCode.Slit),
+        ("SL-DUST", "Dust or particles", OperationCode.Slit),
+        ("GEN-OTHER", "Other", null)
+    ];
+
+    private static readonly (OperationCode Operation, string Code, AlarmSeverity Severity, string Message)[] AlarmCodeSeed =
+    [
+        (OperationCode.Mix, "MX-TEMP-HIGH", AlarmSeverity.Major, "Slurry temperature high"),
+        (OperationCode.Mix, "MX-VAC-LOW", AlarmSeverity.Warning, "Vacuum too weak"),
+        (OperationCode.Mix, "MX-AGITATOR-FAULT", AlarmSeverity.Critical, "Agitator drive fault"),
+        (OperationCode.Coat, "CT-TEMP-HIGH", AlarmSeverity.Major, "Dryer temperature high"),
+        (OperationCode.Coat, "CT-DIE-PRESS-LOW", AlarmSeverity.Warning, "Slot-die pressure low"),
+        (OperationCode.Coat, "CT-WEB-BREAK", AlarmSeverity.Critical, "Web break"),
+        (OperationCode.Cal, "CP-TEMP-HIGH", AlarmSeverity.Major, "Roll temperature high"),
+        (OperationCode.Cal, "CP-NIP-PRESS-HIGH", AlarmSeverity.Warning, "Nip pressure high"),
+        (OperationCode.Cal, "CP-HYDRAULIC-FAULT", AlarmSeverity.Critical, "Hydraulic system fault"),
+        (OperationCode.Slit, "SL-TEMP-HIGH", AlarmSeverity.Major, "Motor temperature high"),
+        (OperationCode.Slit, "SL-TENSION-LOW", AlarmSeverity.Warning, "Web tension low"),
+        (OperationCode.Slit, "SL-BLADE-FAULT", AlarmSeverity.Critical, "Slitting blade fault")
+    ];
+
+    private static readonly (OperationCode Operation, string Name, ParameterKind Kind, string Unit,
+        decimal Setpoint, decimal Low, decimal High, string? LowAlarm, string? HighAlarm)[] ParameterSeed =
+    [
+        (OperationCode.Mix, "Slurry temp", ParameterKind.Temperature, "°C", 25m, 20m, 30m, null, "MX-TEMP-HIGH"),
+        (OperationCode.Mix, "Agitator speed", ParameterKind.Speed, "rpm", 1500m, 1200m, 1800m, null, null),
+        (OperationCode.Mix, "Vacuum", ParameterKind.Pressure, "kPa", 85m, 75m, 95m, "MX-VAC-LOW", null),
+        (OperationCode.Coat, "Dryer temp", ParameterKind.Temperature, "°C", 130m, 120m, 140m, null, "CT-TEMP-HIGH"),
+        (OperationCode.Coat, "Line speed", ParameterKind.Speed, "m/min", 40m, 35m, 45m, null, null),
+        (OperationCode.Coat, "Slot-die pressure", ParameterKind.Pressure, "kPa", 150m, 130m, 170m, "CT-DIE-PRESS-LOW", null),
+        (OperationCode.Cal, "Roll temp", ParameterKind.Temperature, "°C", 90m, 80m, 100m, null, "CP-TEMP-HIGH"),
+        (OperationCode.Cal, "Line speed", ParameterKind.Speed, "m/min", 30m, 25m, 35m, null, null),
+        (OperationCode.Cal, "Nip pressure", ParameterKind.Pressure, "ton", 300m, 270m, 330m, null, "CP-NIP-PRESS-HIGH"),
+        (OperationCode.Slit, "Motor temp", ParameterKind.Temperature, "°C", 45m, 30m, 60m, null, "SL-TEMP-HIGH"),
+        (OperationCode.Slit, "Line speed", ParameterKind.Speed, "m/min", 80m, 70m, 90m, null, null),
+        (OperationCode.Slit, "Web tension", ParameterKind.Pressure, "N", 120m, 100m, 140m, "SL-TENSION-LOW", null)
+    ];
+
     public async Task SeedAsync(CancellationToken ct)
     {
         await SeedUsersAsync(ct);
@@ -33,8 +105,69 @@ public class DemoSeeder(MesDbContext db, IConfiguration configuration, LotIdGene
         await SeedMaterialsAsync(ct);
         await SeedEquipmentAsync(ct);
         await SeedCarriersAsync(ct);
+        await SeedDefectCodesAsync(ct);
+        await SeedAlarmCodesAsync(ct);
+        await SeedParameterDefinitionsAsync(ct);
         await db.SaveChangesAsync(ct);
+        if (configuration.GetValue<bool>("Seed:InspectionSpecs"))
+        {
+            await SeedInspectionSpecsAsync(ct);
+        }
+
         await SeedMaterialLotsAsync(ct);
+    }
+
+    /// <summary>Spec limits for both demo products; skipped when any spec already exists.</summary>
+    public async Task SeedInspectionSpecsAsync(CancellationToken ct)
+    {
+        if (await db.Set<InspectionSpec>().AnyAsync(ct))
+        {
+            return;
+        }
+
+        var products = await db.Set<Product>().ToDictionaryAsync(p => p.Code, p => p.Id, ct);
+        var seqByOperation = new Dictionary<OperationCode, int>();
+        foreach (var row in SpecSeed)
+        {
+            var seq = seqByOperation[row.Operation] = seqByOperation.GetValueOrDefault(row.Operation) + 1;
+            db.Set<InspectionSpec>().Add(new InspectionSpec(
+                products[CathodeCode], row.Operation, row.Item, row.Unit, row.Cathode.Lsl, row.Cathode.Usl, seq));
+            db.Set<InspectionSpec>().Add(new InspectionSpec(
+                products[AnodeCode], row.Operation, row.Item, row.Unit, row.Anode.Lsl, row.Anode.Usl, seq));
+        }
+
+        await db.SaveChangesAsync(ct);
+    }
+
+    private async Task SeedDefectCodesAsync(CancellationToken ct)
+    {
+        if (await db.Set<DefectCode>().AnyAsync(ct))
+        {
+            return;
+        }
+
+        db.Set<DefectCode>().AddRange(DefectCodeSeed.Select(d => new DefectCode(d.Code, d.Description, d.Operation)));
+    }
+
+    private async Task SeedAlarmCodesAsync(CancellationToken ct)
+    {
+        if (await db.Set<AlarmCode>().AnyAsync(ct))
+        {
+            return;
+        }
+
+        db.Set<AlarmCode>().AddRange(AlarmCodeSeed.Select(a => new AlarmCode(a.Code, a.Message, a.Severity, a.Operation)));
+    }
+
+    private async Task SeedParameterDefinitionsAsync(CancellationToken ct)
+    {
+        if (await db.Set<ParameterDefinition>().AnyAsync(ct))
+        {
+            return;
+        }
+
+        db.Set<ParameterDefinition>().AddRange(ParameterSeed.Select(p => new ParameterDefinition(
+            p.Operation, p.Name, p.Kind, p.Unit, p.Setpoint, p.Low, p.High, (int)p.Kind, p.LowAlarm, p.HighAlarm)));
     }
 
     private async Task SeedUsersAsync(CancellationToken ct)

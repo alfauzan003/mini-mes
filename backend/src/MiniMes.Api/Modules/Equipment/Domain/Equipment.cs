@@ -33,6 +33,13 @@ public class Equipment
             ? Result.Success()
             : new Error(ErrorCodes.EquipmentNotAvailable, $"Equipment {Code} is {Status} and cannot start a run.");
 
+    private readonly List<EquipmentStatusChange> _pendingStatusChanges = [];
+
+    /// <summary>Status changes not yet written to the status log; not persisted with the entity.</summary>
+    public IReadOnlyList<EquipmentStatusChange> PendingStatusChanges => _pendingStatusChanges;
+
+    public void ClearPendingStatusChanges() => _pendingStatusChanges.Clear();
+
     public Result StartRun(Guid runId)
     {
         var available = EnsureCanStartRun();
@@ -41,7 +48,7 @@ public class Equipment
             return available;
         }
 
-        Status = EquipmentStatus.Running;
+        ChangeStatus(EquipmentStatus.Running, "Track-in");
         CurrentRunId = runId;
         return Result.Success();
     }
@@ -52,7 +59,63 @@ public class Equipment
         CurrentRunId = null;
         if (Status == EquipmentStatus.Running)
         {
-            Status = EquipmentStatus.Idle;
+            ChangeStatus(EquipmentStatus.Idle, "Track-out");
         }
+    }
+
+    public Result StartMaintenance()
+    {
+        if (Status != EquipmentStatus.Idle || CurrentRunId is not null)
+        {
+            return new Error(
+                ErrorCodes.EquipmentNotAvailable, $"Equipment {Code} is {Status} and cannot start maintenance.");
+        }
+
+        ChangeStatus(EquipmentStatus.Maintenance, "Maintenance started");
+        return Result.Success();
+    }
+
+    public Result EndMaintenance()
+    {
+        if (Status != EquipmentStatus.Maintenance)
+        {
+            return new Error(
+                ErrorCodes.EquipmentInvalidTransition, $"Equipment {Code} is {Status}, not in maintenance.");
+        }
+
+        ChangeStatus(EquipmentStatus.Idle, "Maintenance ended");
+        return Result.Success();
+    }
+
+    /// <summary>An alarm takes an IDLE or RUNNING machine DOWN; the open run is kept. False when it did not apply.</summary>
+    public bool GoDown(string alarmCode)
+    {
+        if (Status is not (EquipmentStatus.Idle or EquipmentStatus.Running))
+        {
+            return false;
+        }
+
+        StatusBeforeDown = Status;
+        ChangeStatus(EquipmentStatus.Down, $"Alarm {alarmCode}");
+        return true;
+    }
+
+    /// <summary>A DOWN machine resumes RUNNING if its run is still open, else IDLE. False when not DOWN.</summary>
+    public bool RecoverFromDown(string reason)
+    {
+        if (Status != EquipmentStatus.Down)
+        {
+            return false;
+        }
+
+        ChangeStatus(CurrentRunId is null ? EquipmentStatus.Idle : EquipmentStatus.Running, reason);
+        StatusBeforeDown = null;
+        return true;
+    }
+
+    private void ChangeStatus(EquipmentStatus to, string reason)
+    {
+        _pendingStatusChanges.Add(new EquipmentStatusChange(Status, to, reason));
+        Status = to;
     }
 }

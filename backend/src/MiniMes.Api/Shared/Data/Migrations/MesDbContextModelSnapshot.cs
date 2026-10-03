@@ -22,6 +22,104 @@ namespace MiniMes.Api.Shared.Data.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("MiniMes.Api.Modules.Alarms.Domain.Alarm", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("AcknowledgedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("acknowledged_at");
+
+                    b.Property<Guid?>("AcknowledgedById")
+                        .HasColumnType("uuid")
+                        .HasColumnName("acknowledged_by_id");
+
+                    b.Property<string>("AlarmCode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("alarm_code");
+
+                    b.Property<DateTimeOffset?>("ClearedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cleared_at");
+
+                    b.Property<Guid>("EquipmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("equipment_id");
+
+                    b.Property<DateTimeOffset>("RaisedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("raised_at");
+
+                    b.Property<string>("Severity")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("severity");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id")
+                        .HasName("pk_alarm");
+
+                    b.HasIndex("AcknowledgedById")
+                        .HasDatabaseName("ix_alarm_acknowledged_by_id");
+
+                    b.HasIndex("AlarmCode")
+                        .HasDatabaseName("ix_alarm_alarm_code");
+
+                    b.HasIndex("EquipmentId", "AlarmCode")
+                        .IsUnique()
+                        .HasDatabaseName("ix_alarm_equipment_id_alarm_code")
+                        .HasFilter("cleared_at IS NULL");
+
+                    b.HasIndex("EquipmentId", "RaisedAt")
+                        .HasDatabaseName("ix_alarm_equipment_id_raised_at");
+
+                    b.ToTable("alarm", "alarm");
+                });
+
+            modelBuilder.Entity("MiniMes.Api.Modules.Alarms.Domain.AlarmCode", b =>
+                {
+                    b.Property<string>("Code")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("code");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("message");
+
+                    b.Property<string>("Operation")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("operation");
+
+                    b.Property<string>("Severity")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("severity");
+
+                    b.HasKey("Code")
+                        .HasName("pk_alarm_code");
+
+                    b.HasIndex("Operation")
+                        .HasDatabaseName("ix_alarm_code_operation");
+
+                    b.ToTable("alarm_code", "alarm");
+                });
+
             modelBuilder.Entity("MiniMes.Api.Modules.Carriers.Domain.Carrier", b =>
                 {
                     b.Property<Guid>("Id")
@@ -151,6 +249,159 @@ namespace MiniMes.Api.Shared.Data.Migrations
                         .HasDatabaseName("ix_equipment_code");
 
                     b.ToTable("equipment", "eqp");
+                });
+
+            modelBuilder.Entity("MiniMes.Api.Modules.Equipment.Domain.EquipmentStatusLog", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("ChangedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("changed_at");
+
+                    b.Property<Guid>("EquipmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("equipment_id");
+
+                    b.Property<string>("From")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("from");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("To")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("to");
+
+                    b.HasKey("Id")
+                        .HasName("pk_equipment_status_log");
+
+                    b.HasIndex("EquipmentId", "ChangedAt")
+                        .HasDatabaseName("ix_equipment_status_log_equipment_id_changed_at");
+
+                    b.ToTable("equipment_status_log", "eqp");
+                });
+
+            modelBuilder.Entity("MiniMes.Api.Modules.Equipment.Domain.ParameterDefinition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("High")
+                        .HasPrecision(12, 3)
+                        .HasColumnType("numeric(12,3)")
+                        .HasColumnName("high");
+
+                    b.Property<string>("HighAlarmCode")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("high_alarm_code");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("kind");
+
+                    b.Property<decimal>("Low")
+                        .HasPrecision(12, 3)
+                        .HasColumnType("numeric(12,3)")
+                        .HasColumnName("low");
+
+                    b.Property<string>("LowAlarmCode")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("low_alarm_code");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Operation")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("operation");
+
+                    b.Property<int>("Seq")
+                        .HasColumnType("integer")
+                        .HasColumnName("seq");
+
+                    b.Property<decimal>("Setpoint")
+                        .HasPrecision(12, 3)
+                        .HasColumnType("numeric(12,3)")
+                        .HasColumnName("setpoint");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("unit");
+
+                    b.HasKey("Id")
+                        .HasName("pk_parameter_definition");
+
+                    b.HasIndex("Operation", "Name")
+                        .IsUnique()
+                        .HasDatabaseName("ix_parameter_definition_operation_name");
+
+                    b.ToTable("parameter_definition", "eqp");
+                });
+
+            modelBuilder.Entity("MiniMes.Api.Modules.Equipment.Domain.ParameterReading", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<Guid>("EquipmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("equipment_id");
+
+                    b.Property<string>("Parameter")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("parameter");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at");
+
+                    b.Property<decimal>("Value")
+                        .HasPrecision(12, 3)
+                        .HasColumnType("numeric(12,3)")
+                        .HasColumnName("value");
+
+                    b.HasKey("Id")
+                        .HasName("pk_parameter_reading");
+
+                    b.HasIndex("RecordedAt")
+                        .HasDatabaseName("ix_parameter_reading_recorded_at");
+
+                    b.HasIndex("EquipmentId", "Parameter", "RecordedAt")
+                        .HasDatabaseName("ix_parameter_reading_equipment_id_parameter_recorded_at");
+
+                    b.ToTable("parameter_reading", "eqp");
                 });
 
             modelBuilder.Entity("MiniMes.Api.Modules.Execution.Domain.ProductionRun", b =>
@@ -575,6 +826,219 @@ namespace MiniMes.Api.Shared.Data.Migrations
                     b.ToTable("id_sequence", "lot");
                 });
 
+            modelBuilder.Entity("MiniMes.Api.Modules.Quality.Domain.DefectCode", b =>
+                {
+                    b.Property<string>("Code")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("code");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Operation")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("operation");
+
+                    b.HasKey("Code")
+                        .HasName("pk_defect_code");
+
+                    b.HasIndex("Operation")
+                        .HasDatabaseName("ix_defect_code_operation");
+
+                    b.ToTable("defect_code", "qc");
+                });
+
+            modelBuilder.Entity("MiniMes.Api.Modules.Quality.Domain.Inspection", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("DefectCode")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("defect_code");
+
+                    b.Property<string>("Disposition")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("disposition");
+
+                    b.Property<DateTimeOffset?>("DispositionAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("disposition_at");
+
+                    b.Property<Guid?>("DispositionById")
+                        .HasColumnType("uuid")
+                        .HasColumnName("disposition_by_id");
+
+                    b.Property<string>("DispositionReason")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("disposition_reason");
+
+                    b.Property<DateTimeOffset>("InspectedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("inspected_at");
+
+                    b.Property<Guid>("InspectorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("inspector_id");
+
+                    b.Property<Guid>("LotId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lot_id");
+
+                    b.Property<string>("Operation")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("operation");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("reason");
+
+                    b.Property<decimal?>("RejectQty")
+                        .HasColumnType("numeric(12,3)")
+                        .HasColumnName("reject_qty");
+
+                    b.Property<string>("Result")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("result");
+
+                    b.HasKey("Id")
+                        .HasName("pk_inspection");
+
+                    b.HasIndex("DefectCode")
+                        .HasDatabaseName("ix_inspection_defect_code");
+
+                    b.HasIndex("Operation")
+                        .HasDatabaseName("ix_inspection_operation");
+
+                    b.HasIndex("LotId", "InspectedAt")
+                        .HasDatabaseName("ix_inspection_lot_id_inspected_at");
+
+                    b.ToTable("inspection", "qc");
+                });
+
+            modelBuilder.Entity("MiniMes.Api.Modules.Quality.Domain.InspectionMeasurement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("InspectionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("inspection_id");
+
+                    b.Property<string>("ItemName")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("item_name");
+
+                    b.Property<string>("Judgment")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("judgment");
+
+                    b.Property<decimal>("Lsl")
+                        .HasColumnType("numeric(12,4)")
+                        .HasColumnName("lsl");
+
+                    b.Property<Guid>("SpecId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("spec_id");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("unit");
+
+                    b.Property<decimal>("Usl")
+                        .HasColumnType("numeric(12,4)")
+                        .HasColumnName("usl");
+
+                    b.Property<decimal>("Value")
+                        .HasColumnType("numeric(12,4)")
+                        .HasColumnName("value");
+
+                    b.HasKey("Id")
+                        .HasName("pk_inspection_measurement");
+
+                    b.HasIndex("InspectionId")
+                        .HasDatabaseName("ix_inspection_measurement_inspection_id");
+
+                    b.HasIndex("SpecId")
+                        .HasDatabaseName("ix_inspection_measurement_spec_id");
+
+                    b.ToTable("inspection_measurement", "qc");
+                });
+
+            modelBuilder.Entity("MiniMes.Api.Modules.Quality.Domain.InspectionSpec", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ItemName")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("item_name");
+
+                    b.Property<decimal>("Lsl")
+                        .HasColumnType("numeric(12,4)")
+                        .HasColumnName("lsl");
+
+                    b.Property<string>("Operation")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("operation");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<int>("Seq")
+                        .HasColumnType("integer")
+                        .HasColumnName("seq");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("unit");
+
+                    b.Property<decimal>("Usl")
+                        .HasColumnType("numeric(12,4)")
+                        .HasColumnName("usl");
+
+                    b.HasKey("Id")
+                        .HasName("pk_inspection_spec");
+
+                    b.HasIndex("Operation")
+                        .HasDatabaseName("ix_inspection_spec_operation");
+
+                    b.HasIndex("ProductId", "Operation", "ItemName")
+                        .IsUnique()
+                        .HasDatabaseName("ix_inspection_spec_product_id_operation_item_name");
+
+                    b.ToTable("inspection_spec", "qc");
+                });
+
             modelBuilder.Entity("MiniMes.Api.Modules.WorkOrders.Domain.Operation", b =>
                 {
                     b.Property<string>("Code")
@@ -777,6 +1241,39 @@ namespace MiniMes.Api.Shared.Data.Migrations
                     b.ToTable("work_order_operation", "wo");
                 });
 
+            modelBuilder.Entity("MiniMes.Api.Modules.Alarms.Domain.Alarm", b =>
+                {
+                    b.HasOne("MiniMes.Api.Modules.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("AcknowledgedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_alarm_user_acknowledged_by_id");
+
+                    b.HasOne("MiniMes.Api.Modules.Alarms.Domain.AlarmCode", null)
+                        .WithMany()
+                        .HasForeignKey("AlarmCode")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_alarm_alarm_code_alarm_code");
+
+                    b.HasOne("MiniMes.Api.Modules.Equipment.Domain.Equipment", null)
+                        .WithMany()
+                        .HasForeignKey("EquipmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_alarm_equipment_equipment_id");
+                });
+
+            modelBuilder.Entity("MiniMes.Api.Modules.Alarms.Domain.AlarmCode", b =>
+                {
+                    b.HasOne("MiniMes.Api.Modules.WorkOrders.Domain.Operation", null)
+                        .WithMany()
+                        .HasForeignKey("Operation")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_alarm_code_operation_operation");
+                });
+
             modelBuilder.Entity("MiniMes.Api.Modules.Carriers.Domain.Carrier", b =>
                 {
                     b.HasOne("MiniMes.Api.Modules.Carriers.Domain.CarrierType", "Type")
@@ -787,6 +1284,26 @@ namespace MiniMes.Api.Shared.Data.Migrations
                         .HasConstraintName("fk_carrier_carrier_type_type_code");
 
                     b.Navigation("Type");
+                });
+
+            modelBuilder.Entity("MiniMes.Api.Modules.Equipment.Domain.ParameterDefinition", b =>
+                {
+                    b.HasOne("MiniMes.Api.Modules.WorkOrders.Domain.Operation", null)
+                        .WithMany()
+                        .HasForeignKey("Operation")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_parameter_definition_operation_operation");
+                });
+
+            modelBuilder.Entity("MiniMes.Api.Modules.Equipment.Domain.ParameterReading", b =>
+                {
+                    b.HasOne("MiniMes.Api.Modules.Equipment.Domain.Equipment", null)
+                        .WithMany()
+                        .HasForeignKey("EquipmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_parameter_reading_equipment_equipment_id");
                 });
 
             modelBuilder.Entity("MiniMes.Api.Modules.Execution.Domain.RunInput", b =>
@@ -807,6 +1324,72 @@ namespace MiniMes.Api.Shared.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_run_output_production_run_run_id");
+                });
+
+            modelBuilder.Entity("MiniMes.Api.Modules.Quality.Domain.DefectCode", b =>
+                {
+                    b.HasOne("MiniMes.Api.Modules.WorkOrders.Domain.Operation", null)
+                        .WithMany()
+                        .HasForeignKey("Operation")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_defect_code_operation_operation");
+                });
+
+            modelBuilder.Entity("MiniMes.Api.Modules.Quality.Domain.Inspection", b =>
+                {
+                    b.HasOne("MiniMes.Api.Modules.Quality.Domain.DefectCode", null)
+                        .WithMany()
+                        .HasForeignKey("DefectCode")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_inspection_defect_code_defect_code");
+
+                    b.HasOne("MiniMes.Api.Modules.Lots.Domain.Lot", null)
+                        .WithMany()
+                        .HasForeignKey("LotId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_inspection_lot_lot_id");
+
+                    b.HasOne("MiniMes.Api.Modules.WorkOrders.Domain.Operation", null)
+                        .WithMany()
+                        .HasForeignKey("Operation")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_inspection_operation_operation");
+                });
+
+            modelBuilder.Entity("MiniMes.Api.Modules.Quality.Domain.InspectionMeasurement", b =>
+                {
+                    b.HasOne("MiniMes.Api.Modules.Quality.Domain.Inspection", null)
+                        .WithMany("Measurements")
+                        .HasForeignKey("InspectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_inspection_measurement_inspection_inspection_id");
+
+                    b.HasOne("MiniMes.Api.Modules.Quality.Domain.InspectionSpec", null)
+                        .WithMany()
+                        .HasForeignKey("SpecId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_inspection_measurement_inspection_spec_spec_id");
+                });
+
+            modelBuilder.Entity("MiniMes.Api.Modules.Quality.Domain.InspectionSpec", b =>
+                {
+                    b.HasOne("MiniMes.Api.Modules.WorkOrders.Domain.Operation", null)
+                        .WithMany()
+                        .HasForeignKey("Operation")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_inspection_spec_operation_operation");
+
+                    b.HasOne("MiniMes.Api.Modules.WorkOrders.Domain.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_inspection_spec_product_product_id");
                 });
 
             modelBuilder.Entity("MiniMes.Api.Modules.WorkOrders.Domain.ProductRouteStep", b =>
@@ -848,6 +1431,11 @@ namespace MiniMes.Api.Shared.Data.Migrations
                     b.Navigation("Inputs");
 
                     b.Navigation("Outputs");
+                });
+
+            modelBuilder.Entity("MiniMes.Api.Modules.Quality.Domain.Inspection", b =>
+                {
+                    b.Navigation("Measurements");
                 });
 
             modelBuilder.Entity("MiniMes.Api.Modules.WorkOrders.Domain.Product", b =>

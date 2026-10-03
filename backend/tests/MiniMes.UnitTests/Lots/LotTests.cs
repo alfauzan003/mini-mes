@@ -1,4 +1,5 @@
 using MiniMes.Api.Modules.Lots.Domain;
+using MiniMes.Api.Modules.Quality.Domain;
 using MiniMes.Api.Modules.WorkOrders.Domain;
 using MiniMes.Api.Shared.Results;
 
@@ -235,4 +236,122 @@ public class LotTests
 
         Assert.Equal(OperationCode.Slit, ev.Operation);
     }
+
+    private static Lot HeldFailedLot()
+    {
+        var lot = Electrode();
+        lot.ApplyInspection(InspectionResult.Fail);
+        return lot;
+    }
+
+    [Fact]
+    public void Final_lot_has_no_next_operation()
+    {
+        Assert.False(Electrode().IsFinal);
+        Assert.True(Electrode(OperationCode.Slit).IsFinal);
+    }
+
+    [Fact]
+    public void Pass_inspection_keeps_wait_and_sets_pass()
+    {
+        var lot = Electrode();
+
+        var result = lot.ApplyInspection(InspectionResult.Pass);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(LotStatus.Wait, lot.Status);
+        Assert.Equal(QualityStatus.Pass, lot.Quality);
+    }
+
+    [Fact]
+    public void Fail_inspection_holds_lot()
+    {
+        var lot = Electrode();
+
+        var result = lot.ApplyInspection(InspectionResult.Fail);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(LotStatus.Hold, lot.Status);
+        Assert.Equal(QualityStatus.Fail, lot.Quality);
+    }
+
+    [Fact]
+    public void Inspection_needs_wait_and_none()
+    {
+        var passed = Electrode();
+        passed.ApplyInspection(InspectionResult.Pass);
+
+        Assert.False(passed.CanBeInspected);
+        Assert.Equal(ErrorCodes.LotNotAvailable, passed.ApplyInspection(InspectionResult.Pass).Error!.Code);
+        Assert.Equal(ErrorCodes.LotNotAvailable, HeldFailedLot().ApplyInspection(InspectionResult.Fail).Error!.Code);
+        Assert.True(Electrode().CanBeInspected);
+    }
+
+    [Fact]
+    public void Manual_hold_keeps_quality()
+    {
+        var lot = Electrode();
+        lot.ApplyInspection(InspectionResult.Pass);
+
+        var result = lot.Hold();
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(LotStatus.Hold, lot.Status);
+        Assert.Equal(QualityStatus.Pass, lot.Quality);
+    }
+
+    [Fact]
+    public void Hold_requires_wait()
+    {
+        var lot = Electrode();
+        lot.TrackIn(Guid.NewGuid());
+
+        Assert.Equal(ErrorCodes.LotNotAvailable, lot.Hold().Error!.Code);
+    }
+
+    [Fact]
+    public void Release_of_fail_sets_pass()
+    {
+        var lot = HeldFailedLot();
+
+        var result = lot.Release();
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(LotStatus.Wait, lot.Status);
+        Assert.Equal(QualityStatus.Pass, lot.Quality);
+    }
+
+    [Fact]
+    public void Release_of_manual_hold_keeps_quality()
+    {
+        var lot = Electrode();
+        lot.Hold();
+
+        var result = lot.Release();
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(LotStatus.Wait, lot.Status);
+        Assert.Equal(QualityStatus.None, lot.Quality);
+    }
+
+    [Fact]
+    public void Release_requires_hold() =>
+        Assert.Equal(ErrorCodes.LotNotAvailable, Electrode().Release().Error!.Code);
+
+    [Fact]
+    public void Scrap_clears_carrier()
+    {
+        var lot = HeldFailedLot();
+        lot.PlaceOnCarrier(Guid.NewGuid());
+
+        var result = lot.Scrap();
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(LotStatus.Scrapped, lot.Status);
+        Assert.Null(lot.CurrentCarrierId);
+    }
+
+    [Fact]
+    public void Scrap_requires_hold() =>
+        Assert.Equal(ErrorCodes.LotNotAvailable, Electrode().Scrap().Error!.Code);
 }

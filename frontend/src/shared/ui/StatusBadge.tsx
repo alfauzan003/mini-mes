@@ -22,6 +22,8 @@ const TONE_BY_VALUE: Record<string, Tone> = {
   FINISHED: 'green',
   COMPLETED: 'green',
   PASS: 'green',
+  OK: 'green',
+  NG: 'red',
   HOLD: 'amber',
   MAINTENANCE: 'amber',
   FAIL: 'red',

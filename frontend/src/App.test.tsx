@@ -41,11 +41,12 @@ describe('App routing', () => {
     expect(screen.getByText('Log in as Planner')).toBeInTheDocument()
   })
 
-  it('sends a planner to work orders without the operator station link', () => {
+  it('sends a planner to the dashboard without the operator station link', () => {
     signInAs('PLANNER')
     renderAt('/')
 
-    expect(screen.getByRole('heading', { name: 'Work Orders' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Dashboard' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Dashboard' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Operator Station' })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Carriers' })).toBeInTheDocument()
   })

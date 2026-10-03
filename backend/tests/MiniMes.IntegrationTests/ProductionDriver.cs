@@ -9,6 +9,10 @@ using MiniMes.Api.Modules.Execution;
 using MiniMes.Api.Modules.Execution.Features.TrackOut;
 using MiniMes.Api.Modules.Lots.Domain;
 using MiniMes.Api.Modules.Lots.Features.Queries;
+using MiniMes.Api.Modules.Quality.Domain;
+using MiniMes.Api.Modules.Quality.Features.Inspections;
+using MiniMes.Api.Modules.Quality.Features.RecordInspection;
+using MiniMes.Api.Modules.Quality.Features.Specs;
 using MiniMes.Api.Modules.WorkOrders.Domain;
 using MiniMes.Api.Modules.WorkOrders.Features.Queries;
 
@@ -31,6 +35,7 @@ public sealed class ProductionDriver(WebApplicationFactory<Program> api)
 {
     private const decimal RawQty = 500m;
     private const decimal FoilQty = 6000m;
+    private const int SlitterLanes = 8;
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
@@ -39,6 +44,7 @@ public sealed class ProductionDriver(WebApplicationFactory<Program> api)
 
     private HttpClient? _planner;
     private HttpClient? _operator;
+    private HttpClient? _qc;
     private Dictionary<string, MaterialDto>? _materials;
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -46,6 +52,10 @@ public sealed class ProductionDriver(WebApplicationFactory<Program> api)
     public async Task<HttpClient> PlannerAsync() => _planner ??= await api.ClientAsAsync("planner");
 
     public async Task<HttpClient> OperatorAsync() => _operator ??= await api.ClientAsAsync("operator");
+
+    public async Task<HttpClient> QcAsync() => _qc ??= await api.ClientAsAsync("qc");
+
+    public static JsonSerializerOptions JsonOptions => Json;
 
     /// <summary>Creates a planned (not yet released) work order whose route runs on the given equipment.</summary>
     public async Task<WorkOrderDto> CreateWorkOrderAsync(
@@ -118,7 +128,7 @@ public sealed class ProductionDriver(WebApplicationFactory<Program> api)
     /// <paramref name="target"/> lanes (use 8 or fewer, the slitter's width). Mixing uses 100 kg of each RAW lot
     /// and coating 1300 m of foil, so those lots go back to WAIT with 400 kg and 4700 m left.
     /// </summary>
-    public async Task<FullFlow> RunFullFlowAsync(int target)
+    public async Task<FullFlow> RunFullFlowAsync(int target, Func<string, Task>? afterProduce = null)
     {
         var wo = await CreateReleasedWorkOrderAsync(target: target);
         var raws = await MaterialLotsAsync("NCM811", "PVDF", "SUPER-P", "NMP");
@@ -127,27 +137,83 @@ public sealed class ProductionDriver(WebApplicationFactory<Program> api)
         // MIX: 4 RAW lots become one slurry lot.
         var mix = await TrackInOkAsync("MX01", wo, OperationCode.Mix, raws);
         var slurry = (await ProduceOkAsync(mix.Id, new OutputLine(null, null, 480m, 20m))).Outputs.Single().LotId!;
+        await AfterAsync(afterProduce, slurry);
         await TrackOutOkAsync(mix.Id, [.. raws.Select(raw => new Consumption(raw, 100m))]);
 
         // COAT: foil and slurry become one roll on BB-0001; the slurry is used up.
         var coat = await TrackInOkAsync("CT01", wo, OperationCode.Coat, foil, slurry);
         var electrode = (await ProduceOkAsync(coat.Id, new OutputLine("BB-0001", null, 1200m, 20m)))
             .Outputs.Single().LotId!;
+        await AfterAsync(afterProduce, electrode);
         await TrackOutOkAsync(coat.Id, new Consumption(foil, 1300m));
 
         // CAL: the same roll moves from BB-0001 to BB-0002.
         var cal = await TrackInOkAsync("CP01", wo, OperationCode.Cal, "BB-0001");
         await ProduceOkAsync(cal.Id, new OutputLine("BB-0002", null, 1180m, 20m));
+        await AfterAsync(afterProduce, electrode);
         await TrackOutOkAsync(cal.Id);
 
-        // SLIT: one 145 m lane per good pancake on cores PC-0001...
+        // SLIT: a 145 m pancake on cores PC-0001... in each of the first lanes; the slitter has 8, the rest give nothing.
         var slit = await TrackInOkAsync("SL01", wo, OperationCode.Slit, "BB-0002");
-        var pancakes = (await ProduceOkAsync(
-                slit.Id, [.. Enumerable.Range(1, target).Select(lane => new OutputLine($"PC-{lane:0000}", lane, 145m, 2m))]))
-            .Outputs.Select(o => o.LotId!).ToArray();
+        var lanes = Enumerable.Range(1, SlitterLanes)
+            .Select(lane => lane <= target ? new OutputLine($"PC-{lane:0000}", lane, 145m, 2m) : new OutputLine(null, lane, 0m, 145m))
+            .ToArray();
+        var pancakes = (await ProduceOkAsync(slit.Id, lanes)).Outputs.Where(o => o.LotId is not null)
+            .Select(o => o.LotId!).ToArray();
         await TrackOutOkAsync(slit.Id);
 
         return new FullFlow(wo, raws, foil, slurry, electrode, pancakes, slit.Id);
+    }
+
+    private static async Task AfterAsync(Func<string, Task>? callback, string lotId)
+    {
+        if (callback is not null)
+        {
+            await callback(lotId);
+        }
+    }
+
+    /// <summary>Records an inspection as QC, giving a value per spec item name of the lot's product and operation.</summary>
+    public async Task<HttpResponseMessage> InspectAsync(
+        string lotId, IReadOnlyDictionary<string, decimal> valuesByItem, string? defect = null,
+        string? reason = null, decimal? rejectQty = null) =>
+        await InspectAsAsync(await QcAsync(), lotId, valuesByItem, defect, reason, rejectQty);
+
+    /// <summary>Same as <see cref="InspectAsync"/> but posted by the given client.</summary>
+    public async Task<HttpResponseMessage> InspectAsAsync(
+        HttpClient client, string lotId, IReadOnlyDictionary<string, decimal> valuesByItem, string? defect = null,
+        string? reason = null, decimal? rejectQty = null)
+    {
+        var specs = await SpecsOfAsync(lotId);
+        var measurements = specs.Select(s => new MeasurementInput(s.Id, valuesByItem[s.ItemName])).ToList();
+        return await client.PostAsJsonAsync(
+            $"/api/lots/{lotId}/inspections",
+            new RecordInspectionRequest(measurements, defect, reason, rejectQty), Json, Ct);
+    }
+
+    public async Task<InspectionDto> InspectOkAsync(
+        string lotId, IReadOnlyDictionary<string, decimal> valuesByItem, string? defect = null,
+        string? reason = null, decimal? rejectQty = null)
+    {
+        var response = await InspectAsync(lotId, valuesByItem, defect, reason, rejectQty);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<InspectionDto>(Json, Ct))!;
+    }
+
+    /// <summary>Passes the lot's inspection with the midpoint of every spec's limits.</summary>
+    public async Task InspectPassAsync(string lotId)
+    {
+        var specs = await SpecsOfAsync(lotId);
+        var values = specs.ToDictionary(s => s.ItemName, s => (s.Lsl + s.Usl) / 2m);
+        var inspection = await InspectOkAsync(lotId, values);
+        Assert.Equal(InspectionResult.Pass, inspection.Result);
+    }
+
+    public async Task<IReadOnlyList<InspectionSpecDto>> SpecsOfAsync(string lotId)
+    {
+        var lot = await LotAsync(lotId);
+        var url = $"/api/specs?product={lot.ProductCode}&operation={lot.CurrentOperation}";
+        return (await (await QcAsync()).GetFromJsonAsync<List<InspectionSpecDto>>(url, Json, Ct))!;
     }
 
     public async Task<HttpResponseMessage> TrackInAsync(

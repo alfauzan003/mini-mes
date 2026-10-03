@@ -1,9 +1,14 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router'
+import { TriangleAlert } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { AckButton, SeverityBadge } from '@/features/alarms/AlarmsTable'
+import { useAlarms } from '@/features/alarms/api'
+import { LiveParameters } from '@/features/dashboard/LiveParameters'
 import { ApiError } from '@/shared/api/client'
-import type { AssignmentDto } from '@/shared/api/types'
+import type { AssignmentDto, EquipmentStatus } from '@/shared/api/types'
+import { useLatestReadings } from '@/shared/realtime/useLatestReadings'
 import { StatusBadge } from '@/shared/ui/StatusBadge'
 import { useAssignments, useEquipmentDetail, useTrackIn } from './api'
 import { OpenRunPanel } from './OpenRunPanel'
@@ -44,11 +49,38 @@ function AssignmentChoice({
   )
 }
 
+const BANNERS: Partial<Record<EquipmentStatus, string>> = {
+  DOWN: 'Machine down — clear the alarm before the next track-in; you can still produce output and track out',
+  MAINTENANCE: 'In maintenance — track-in is disabled',
+}
+
+function AlarmStrip({ equipmentCode }: { equipmentCode: string }) {
+  const alarms = useAlarms({ active: true, equipment: equipmentCode })
+  if (!alarms.data?.length) return null
+  return (
+    <ul aria-label="Active alarms" className="space-y-2">
+      {alarms.data.map((alarm) => (
+        <li key={alarm.id} className="flex flex-wrap items-center gap-3 rounded-lg border bg-card px-3 py-2">
+          <SeverityBadge severity={alarm.severity} />
+          <span className="font-mono text-sm">{alarm.code}</span>
+          <span className="flex-1 text-sm">{alarm.message}</span>
+          {alarm.acknowledgedAt ? (
+            <span className="text-sm text-muted-foreground">Acknowledged by {alarm.acknowledgedBy}</span>
+          ) : (
+            <AckButton alarmId={alarm.id} />
+          )}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 export function StationPage() {
   const { equipmentCode } = useParams()
   const equipment = useEquipmentDetail(equipmentCode)
   const assignments = useAssignments(equipmentCode)
   const trackIn = useTrackIn()
+  const readings = useLatestReadings()
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   if (equipment.isError) {
@@ -66,6 +98,8 @@ export function StationPage() {
 
   const eqp = equipment.data
   const run = eqp.openRun
+  const banner = BANNERS[eqp.status]
+  const trackInBlocked = eqp.status === 'DOWN' || eqp.status === 'MAINTENANCE'
   const selected = assignments.data?.find((a) => a.workOrderOperationId === selectedId && a.status !== 'HOLD')
 
   return (
@@ -80,6 +114,30 @@ export function StationPage() {
           <span className="text-muted-foreground">{eqp.name}</span>
         </div>
       </div>
+
+      {banner && (
+        <div
+          role="alert"
+          className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-base font-medium text-amber-900"
+        >
+          <TriangleAlert className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
+          <span>{banner}</span>
+        </div>
+      )}
+
+      <AlarmStrip equipmentCode={eqp.code} />
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Live parameters</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <LiveParameters
+            readings={readings.data?.filter((r) => r.equipmentCode === eqp.code) ?? []}
+            status={eqp.status}
+          />
+        </CardContent>
+      </Card>
 
       {run ? (
         <OpenRunPanel run={run} equipment={eqp} />
@@ -118,6 +176,7 @@ export function StationPage() {
                   key={selected.workOrderOperationId}
                   operation={eqp.operation}
                   submitting={trackIn.isPending}
+                  disabled={trackInBlocked}
                   onTrackIn={(inputs) =>
                     trackIn.mutate({
                       equipmentCode: eqp.code,

@@ -1,6 +1,7 @@
 using MiniMes.Api.Modules.Carriers.Domain;
 using MiniMes.Api.Modules.Equipment.Domain;
 using MiniMes.Api.Modules.Lots.Domain;
+using MiniMes.Api.Modules.Quality.Domain;
 using MiniMes.Api.Modules.WorkOrders.Domain;
 using EquipmentEntity = MiniMes.Api.Modules.Equipment.Domain.Equipment;
 
@@ -38,4 +39,13 @@ public static class TestData
     public static Lot OutputLot(LotType type, string lotId = "EC-261002-0001") => Lot.CreateOutput(
         lotId, type, CathodeProduct(), Guid.NewGuid(), 1000, type == LotType.Pancake ? "pcs" : "m",
         OperationCode.Slit, Guid.NewGuid(), new DateTimeOffset(2026, 10, 2, 8, 0, 0, TimeSpan.Zero));
+
+    /// <summary>A coated electrode roll waiting for inspection: WAIT, quality NONE, produced by COAT.</summary>
+    public static Lot CoatedRoll(decimal qty = 6000) => Lot.CreateOutput(
+        "EC-261003-0001", LotType.Electrode, CathodeProduct(), Guid.NewGuid(), qty, "m",
+        OperationCode.Coat, Guid.NewGuid(), new DateTimeOffset(2026, 10, 3, 8, 0, 0, TimeSpan.Zero));
+
+    public static InspectionSpec CathodeSpec(
+        OperationCode operation, string itemName, string unit, decimal lsl, decimal usl, int seq) =>
+        new(CathodeProduct().Id, operation, itemName, unit, lsl, usl, seq);
 }

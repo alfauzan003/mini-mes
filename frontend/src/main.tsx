@@ -6,6 +6,7 @@ import { Toaster } from '@/components/ui/sonner'
 import { App } from '@/App'
 import { queryClient } from '@/shared/api/queryClient'
 import { AuthProvider } from '@/shared/auth/AuthContext'
+import { RealtimeProvider } from '@/shared/realtime/RealtimeProvider'
 import './index.css'
 
 createRoot(document.getElementById('root')!).render(
@@ -13,7 +14,9 @@ createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthProvider>
-          <App />
+          <RealtimeProvider>
+            <App />
+          </RealtimeProvider>
         </AuthProvider>
       </BrowserRouter>
       <Toaster position="top-right" />

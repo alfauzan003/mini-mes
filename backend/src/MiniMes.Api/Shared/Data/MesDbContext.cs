@@ -1,10 +1,35 @@
 using Microsoft.EntityFrameworkCore;
+using MiniMes.Api.Modules.Equipment.Domain;
+using MiniMes.Api.Shared.Realtime;
 using MiniMes.Api.Shared.Results;
+using EquipmentEntity = MiniMes.Api.Modules.Equipment.Domain.Equipment;
 
 namespace MiniMes.Api.Shared.Data;
 
-public class MesDbContext(DbContextOptions<MesDbContext> options) : DbContext(options)
+/// <param name="changeFeed">Publishes committed changes to clients; optional so tooling and tests can build a bare context.</param>
+public class MesDbContext(
+    DbContextOptions<MesDbContext> options, TimeProvider time, ChangeFeed? changeFeed = null) : DbContext(options)
 {
+    public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        WriteEquipmentStatusLog();
+        return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    private void WriteEquipmentStatusLog()
+    {
+        var now = time.GetUtcNow();
+        foreach (var equipment in ChangeTracker.Entries<EquipmentEntity>().Select(e => e.Entity).ToList())
+        {
+            foreach (var change in equipment.PendingStatusChanges)
+            {
+                Set<EquipmentStatusLog>().Add(new EquipmentStatusLog(equipment.Id, change, now));
+            }
+
+            equipment.ClearPendingStatusChanges();
+        }
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder) =>
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(MesDbContext).Assembly);
 
@@ -30,25 +55,38 @@ public class MesDbContext(DbContextOptions<MesDbContext> options) : DbContext(op
 
     private async Task<Error?> RunInTransactionAsync(Func<CancellationToken, Task<Error?>> work, CancellationToken ct)
     {
-        await using var transaction = await Database.BeginTransactionAsync(ct);
-        try
+        PendingChanges? pending;
+        await using (var transaction = await Database.BeginTransactionAsync(ct))
         {
-            var error = await work(ct);
-            if (error is not null)
+            try
             {
-                await transaction.RollbackAsync(ct);
-                ChangeTracker.Clear();
-                return error;
-            }
+                var error = await work(ct);
+                if (error is not null)
+                {
+                    await transaction.RollbackAsync(ct);
+                    ChangeTracker.Clear();
+                    return error;
+                }
 
-            await SaveChangesAsync(ct);
-            await transaction.CommitAsync(ct);
-            return null;
+                // Taken before saving: afterwards every entry is Unchanged and what was modified is gone.
+                pending = changeFeed?.Capture(ChangeTracker);
+                await SaveChangesAsync(ct);
+                await transaction.CommitAsync(ct);
+            }
+            catch
+            {
+                ChangeTracker.Clear();
+                throw;
+            }
         }
-        catch
+
+        if (pending is not null)
         {
-            ChangeTracker.Clear();
-            throw;
+            // Not the request token: the change is committed, so clients must hear about it even if the caller
+            // has gone away in the meantime.
+            await changeFeed!.PublishAsync(pending, this, CancellationToken.None);
         }
+
+        return null;
     }
 }
