@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { Role } from '@/shared/api/types'
 import { useAuth } from '@/shared/auth/AuthContext'
+import { ConnectionIndicator } from '@/shared/realtime/ConnectionIndicator'
 
 interface NavItem {
   to: string
@@ -48,6 +49,7 @@ export function AppLayout() {
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-14 items-center justify-end gap-3 border-b bg-card px-6">
+          <ConnectionIndicator />
           {user && (
             <div className="text-right text-sm leading-tight">
               <div className="font-medium">{user.displayName}</div>

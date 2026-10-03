@@ -335,3 +335,76 @@ export interface ProblemDetails {
   detail?: string
   errorCode?: string
 }
+
+// Alarms
+export type AlarmSeverity = 'WARNING' | 'MAJOR' | 'CRITICAL'
+
+export interface AlarmDto {
+  id: string
+  equipmentCode: string
+  code: string
+  message: string
+  severity: AlarmSeverity
+  raisedAt: string
+  clearedAt: string | null
+  /** Seconds from raise to clear; null while the alarm is still active. */
+  durationSeconds: number | null
+  acknowledgedBy: string | null
+  acknowledgedAt: string | null
+}
+
+// Machine parameters and readings
+export type ParameterKind = 'TEMPERATURE' | 'SPEED' | 'PRESSURE'
+
+/** Latest value of one equipment parameter; also the ParameterReading real-time payload. */
+export interface LiveReadingDto {
+  equipmentCode: string
+  parameter: string
+  kind: ParameterKind
+  unit: string
+  value: number
+  low: number
+  high: number
+  at: string
+}
+
+export interface ReadingPointDto {
+  at: string
+  value: number
+}
+
+export interface ParameterSeriesDto {
+  parameter: string
+  kind: ParameterKind
+  unit: string
+  low: number
+  high: number
+  points: ReadingPointDto[]
+}
+
+export interface EquipmentStatusLogDto {
+  from: EquipmentStatus
+  to: EquipmentStatus
+  reason: string
+  changedAt: string
+}
+
+// Real-time hub payloads
+export interface EquipmentStatusEvent {
+  code: string
+  status: EquipmentStatus
+}
+
+export interface LotChangedEvent {
+  lotId: string
+  status: LotStatus
+  quality: QualityStatus
+}
+
+export interface WorkOrderProgressEvent {
+  id: string
+  number: string
+  status: WorkOrderStatus
+  goodCount: number
+  targetQty: number
+}
