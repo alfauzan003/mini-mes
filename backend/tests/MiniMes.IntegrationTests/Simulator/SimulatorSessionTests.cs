@@ -3,12 +3,14 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using MiniMes.Api.Modules.Alarms;
 using MiniMes.Api.Modules.Execution;
 using MiniMes.Api.Modules.Execution.Features.TrackOut;
+using MiniMes.Api.Shared.Data;
 using MiniMes.Api.Modules.Equipment.Domain;
 using MiniMes.Simulator;
 using OperationCode = MiniMes.Api.Modules.WorkOrders.Domain.OperationCode;
@@ -123,6 +125,41 @@ public class SimulatorSessionTests(MesApiFactory api) : IAsyncLifetime
         await _session.TickAsync(Ct);
 
         var admin = await api.ClientAsAsync("admin");
+        var active = await admin.GetFromJsonAsync<JsonElement>("/api/alarms?active=true", Ct);
+        Assert.Empty(active.EnumerateArray());
+    }
+
+    private async Task RenameEquipmentAsync(string from, string to)
+    {
+        await using var scope = api.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+#pragma warning disable EF1002
+        await db.Database.ExecuteSqlRawAsync($"UPDATE eqp.equipment SET code = '{to}' WHERE code = '{from}'", Ct);
+#pragma warning restore EF1002
+    }
+
+    [Fact]
+    public async Task Rejected_clear_is_retried_on_the_next_tick()
+    {
+        await using (var scope = api.Services.CreateAsyncScope())
+        {
+            var raised = await scope.ServiceProvider.GetRequiredService<AlarmService>()
+                .RaiseAsync("CT01", "CT-TEMP-HIGH", Ct);
+            Assert.True(raised.IsSuccess, raised.Error?.Code);
+        }
+
+        await _session.LoadAsync(Ct);
+        // The hub refuses the clear because it no longer knows the equipment under that code.
+        await RenameEquipmentAsync("CT01", "CT99");
+        await _session.TickAsync(Ct);
+        await RenameEquipmentAsync("CT99", "CT01");
+
+        var admin = await api.ClientAsAsync("admin");
+        var stillActive = await admin.GetFromJsonAsync<JsonElement>("/api/alarms?active=true", Ct);
+        Assert.Single(stillActive.EnumerateArray());
+
+        await _session.TickAsync(Ct);
+
         var active = await admin.GetFromJsonAsync<JsonElement>("/api/alarms?active=true", Ct);
         Assert.Empty(active.EnumerateArray());
     }

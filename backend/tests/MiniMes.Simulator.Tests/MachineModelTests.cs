@@ -159,4 +159,138 @@ public class MachineModelTests
         Assert.Empty(second.Clear);
         Assert.Empty(model.ActiveAlarms);
     }
+
+    private static MachineEquipmentState Mix(EquipmentStatus status) => new(
+        "MX01", OperationCode.Mix, status,
+        [
+            new("Slurry temp", ParameterKind.Temperature, "C", 25, 20, 30, null, "MX-TEMP-HIGH"),
+            new("Agitator speed", ParameterKind.Speed, "rpm", 1500, 1200, 1800, null, null),
+            new("Vacuum", ParameterKind.Pressure, "kPa", 85, 75, 95, "MX-VAC-LOW", null)
+        ],
+        [
+            new("MX-TEMP-HIGH", AlarmSeverity.Major),
+            new("MX-VAC-LOW", AlarmSeverity.Warning),
+            new("MX-AGITATOR-FAULT", AlarmSeverity.Critical)
+        ],
+        []);
+
+    private static MachineEquipmentState Slit(EquipmentStatus status) => new(
+        "SL01", OperationCode.Slit, status,
+        [
+            new("Motor temp", ParameterKind.Temperature, "C", 45, 30, 60, null, "SL-TEMP-HIGH"),
+            new("Line speed", ParameterKind.Speed, "m/min", 80, 70, 90, null, null),
+            new("Web tension", ParameterKind.Pressure, "N", 120, 100, 140, "SL-TENSION-LOW", null)
+        ],
+        [
+            new("SL-TEMP-HIGH", AlarmSeverity.Major),
+            new("SL-TENSION-LOW", AlarmSeverity.Warning),
+            new("SL-BLADE-FAULT", AlarmSeverity.Critical)
+        ],
+        []);
+
+    public static IEnumerable<object[]> RampCases()
+    {
+        foreach (var from in new[] { EquipmentStatus.Idle, EquipmentStatus.Down })
+        {
+            yield return [Coat(from)];
+            yield return [Mix(from)];
+            yield return [Slit(from)];
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(RampCases))]
+    public void Starting_a_run_from_rest_raises_no_alarms_during_the_ramp(MachineEquipmentState state)
+    {
+        var model = new MachineModel(state, Options());
+        var rng = new Random(42);
+        var now = T0;
+        for (var i = 0; i < 20; i++) { model.Tick(now, rng); now = now.AddSeconds(2); }
+
+        model.SetStatus(EquipmentStatus.Running);
+        for (var i = 0; i < 60; i++)
+        {
+            var tick = model.Tick(now, rng);
+            now = now.AddSeconds(2);
+            Assert.Empty(tick.Raise);
+            Assert.Empty(tick.Clear);
+        }
+
+        Assert.Empty(model.ActiveAlarms);
+        foreach (var p in state.Parameters)
+            Assert.InRange(model.Values[p.Name], p.Low, p.High);
+    }
+
+    [Fact]
+    public void A_drift_after_settling_still_alarms_on_a_pressure_parameter()
+    {
+        var model = new MachineModel(Mix(EquipmentStatus.Idle), Options());
+        var rng = new Random(42);
+        var now = T0;
+        model.SetStatus(EquipmentStatus.Running);
+        for (var i = 0; i < 40; i++) { model.Tick(now, rng); now = now.AddSeconds(2); }
+
+        model.ForceDrift("Vacuum", 15);
+        var raises = new List<string>();
+        for (var i = 0; i < 30; i++)
+        {
+            raises.AddRange(model.Tick(now, rng).Raise);
+            now = now.AddSeconds(2);
+        }
+
+        Assert.Equal(["MX-VAC-LOW"], raises);
+    }
+
+    [Fact]
+    public void A_drift_forced_before_settling_waits_for_the_parameter_then_alarms()
+    {
+        var model = new MachineModel(Slit(EquipmentStatus.Idle), Options());
+        var rng = new Random(42);
+        var now = T0;
+        model.SetStatus(EquipmentStatus.Running);
+        model.ForceDrift("Web tension", 15);
+
+        var raises = new List<string>();
+        for (var i = 0; i < 60; i++)
+        {
+            raises.AddRange(model.Tick(now, rng).Raise);
+            now = now.AddSeconds(2);
+        }
+
+        Assert.Equal(["SL-TENSION-LOW"], raises);
+    }
+
+    [Fact]
+    public void A_rejected_clear_is_reported_again_on_the_next_tick()
+    {
+        var model = new MachineModel(Coat(EquipmentStatus.Running, "CT-WEB-BREAK"), Options());
+        var rng = new Random(42);
+        var first = model.Tick(T0, rng);
+        Assert.Equal(["CT-WEB-BREAK"], first.Clear);
+
+        model.RetryClear("CT-WEB-BREAK");
+
+        Assert.Equal(["CT-WEB-BREAK"], model.Tick(T0.AddSeconds(2), rng).Clear);
+        Assert.Empty(model.Tick(T0.AddSeconds(4), rng).Clear);
+    }
+
+    [Fact]
+    public void A_rejected_raise_is_attempted_again_while_still_out_of_limits()
+    {
+        var model = new MachineModel(Coat(), Options());
+        var rng = new Random(42);
+        var now = T0;
+        model.ForceDrift("Dryer temp", 50);
+        var raiseTick = -1;
+        for (var i = 0; i < 30 && raiseTick < 0; i++)
+        {
+            if (model.Tick(now, rng).Raise.Contains("CT-TEMP-HIGH")) raiseTick = i;
+            now = now.AddSeconds(2);
+        }
+        Assert.True(raiseTick >= 0);
+
+        model.ForgetRaised("CT-TEMP-HIGH");
+
+        Assert.Equal(["CT-TEMP-HIGH"], model.Tick(now, rng).Raise);
+    }
 }

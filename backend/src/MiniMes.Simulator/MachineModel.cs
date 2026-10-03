@@ -13,6 +13,9 @@ public sealed class MachineModel
     private readonly Dictionary<string, decimal> _values = new();
     private readonly HashSet<string> _active = new();
     private readonly List<string> _adopted;
+    // Parameters that have reached their limits since the machine started running; ramping up from rest is not a fault.
+    private readonly HashSet<string> _retryClear = new();
+    private readonly HashSet<string> _settled = new();
 
     private string? _driftParameter;
     private int _driftTicksLeft;
@@ -51,6 +54,17 @@ public sealed class MachineModel
         _faultClearAt = now.AddSeconds(30 + rng.NextDouble() * 30);
     }
 
+    /// <summary>Puts back an alarm the hub rejected clearing, so the next tick reports the clear again.</summary>
+    public void RetryClear(string code) => _retryClear.Add(code);
+
+    /// <summary>Forgets an alarm the hub rejected raising, so the next evaluation raises it again.</summary>
+    public void ForgetRaised(string code)
+    {
+        _active.Remove(code);
+        if (code == _faultCode)
+            _faultPending = true;
+    }
+
     public void ForceDrift(string parameter, int ticks)
     {
         _driftParameter = parameter;
@@ -63,6 +77,10 @@ public sealed class MachineModel
         var clear = new List<string>();
         var running = Status == EquipmentStatus.Running;
 
+        foreach (var code in _retryClear)
+            clear.Add(code);
+        _retryClear.Clear();
+
         if (_firstTick)
         {
             _firstTick = false;
@@ -74,7 +92,10 @@ public sealed class MachineModel
         }
 
         if (!running)
+        {
             _driftParameter = null;
+            _settled.Clear();
+        }
         else if (_driftParameter is null && rng.NextDouble() < _options.DriftChancePerTick)
         {
             var candidates = _state.Parameters
@@ -115,7 +136,8 @@ public sealed class MachineModel
             }
         }
 
-        if (_driftParameter is not null && --_driftTicksLeft <= 0)
+        // A drift requested before its parameter settled waits for it, so the excursion is a real one.
+        if (_driftParameter is not null && _settled.Contains(_driftParameter) && --_driftTicksLeft <= 0)
             _driftParameter = null;
 
         if (_faultCode is not null)
@@ -130,7 +152,6 @@ public sealed class MachineModel
             {
                 _active.Remove(_faultCode);
                 clear.Add(_faultCode);
-                _faultCode = null;
             }
         }
 
@@ -150,7 +171,7 @@ public sealed class MachineModel
             return p.Kind == ParameterKind.Temperature ? (decimal)_options.AmbientTemperature : 0m;
 
         var target = p.Setpoint;
-        if (_driftParameter == p.Name)
+        if (_driftParameter == p.Name && _settled.Contains(p.Name))
         {
             var offset = (p.High - p.Low) * 0.6m;
             target += p.HighAlarmCode is not null ? offset : p.LowAlarmCode is not null ? -offset : 0m;
@@ -160,6 +181,13 @@ public sealed class MachineModel
 
     private void Evaluate(MachineParameterDto p, decimal value, List<string> raise, List<string> clear)
     {
+        if (!_settled.Contains(p.Name))
+        {
+            if (value < p.Low || value > p.High)
+                return;
+            _settled.Add(p.Name);
+        }
+
         if (value > p.High && p.HighAlarmCode is not null && _active.Add(p.HighAlarmCode))
             raise.Add(p.HighAlarmCode);
         else if (value < p.Low && p.LowAlarmCode is not null && _active.Add(p.LowAlarmCode))

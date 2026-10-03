@@ -96,21 +96,40 @@ public sealed class SimulatorSession
                 await SendAsync(code, "ReportReadings", [code, tick.Readings], ct);
             // Clear before raise: a first tick can both drop an adopted alarm and raise an injected one.
             foreach (var alarm in tick.Clear)
-                await SendAsync(code, "ClearAlarm", [code, alarm], ct);
+            {
+                if (!await SendAsync(code, "ClearAlarm", [code, alarm], ct))
+                    WithModel(code, m => m.RetryClear(alarm));
+            }
+
             foreach (var alarm in tick.Raise)
-                await SendAsync(code, "RaiseAlarm", [code, alarm], ct);
+            {
+                if (!await SendAsync(code, "RaiseAlarm", [code, alarm], ct))
+                    WithModel(code, m => m.ForgetRaised(alarm));
+            }
         }
     }
 
-    private async Task SendAsync(string code, string method, object?[] args, CancellationToken ct)
+    // A rejected alarm call is retried on the next tick: the model is told so it does not believe the hub took it.
+    private void WithModel(string code, Action<MachineModel> action)
+    {
+        lock (_gate)
+        {
+            if (_models.TryGetValue(code, out var model))
+                action(model);
+        }
+    }
+
+    private async Task<bool> SendAsync(string code, string method, object?[] args, CancellationToken ct)
     {
         try
         {
             await _connection.InvokeCoreAsync(method, args, ct);
+            return true;
         }
         catch (HubException ex)
         {
             _logger.LogWarning(ex, "Hub rejected {Method} for {Code}", method, code);
+            return false;
         }
     }
 }

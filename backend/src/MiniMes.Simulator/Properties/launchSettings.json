@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "MiniMes.Simulator": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}
