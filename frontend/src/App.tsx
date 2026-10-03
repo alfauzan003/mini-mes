@@ -3,6 +3,9 @@ import { LoginPage } from '@/features/auth/LoginPage'
 import { CarrierListPage } from '@/features/carriers/CarrierListPage'
 import { LotDetailPage } from '@/features/lots/LotDetailPage'
 import { LotListPage } from '@/features/lots/LotListPage'
+import { InspectPage } from '@/features/quality/InspectPage'
+import { QualityPage } from '@/features/quality/QualityPage'
+import { SpecsPage } from '@/features/quality/SpecsPage'
 import { StationPage } from '@/features/operator/StationPage'
 import { StationPickerPage } from '@/features/operator/StationPickerPage'
 import { WorkOrderDetailPage } from '@/features/work-orders/WorkOrderDetailPage'
@@ -13,7 +16,8 @@ import { AppLayout } from '@/shared/layout/AppLayout'
 
 function HomeRedirect() {
   const { user } = useAuth()
-  return <Navigate to={user?.role === 'OPERATOR' ? '/station' : '/work-orders'} replace />
+  const home = user?.role === 'OPERATOR' ? '/station' : user?.role === 'QC' ? '/quality' : '/work-orders'
+  return <Navigate to={home} replace />
 }
 
 export function App() {
@@ -44,6 +48,16 @@ export function App() {
           <Route path="lots" element={<LotListPage />} />
           <Route path="lots/:lotId" element={<LotDetailPage />} />
           <Route path="carriers" element={<CarrierListPage />} />
+          <Route path="quality" element={<QualityPage />} />
+          <Route
+            path="quality/inspect/:lotId"
+            element={
+              <RequireRole roles={['QC', 'ADMIN']}>
+                <InspectPage />
+              </RequireRole>
+            }
+          />
+          <Route path="quality/specs" element={<SpecsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Route>
