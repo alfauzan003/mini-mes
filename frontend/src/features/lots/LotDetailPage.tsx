@@ -1,11 +1,18 @@
+import { useState } from 'react'
 import { Link, useParams } from 'react-router'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatDateTime } from '@/features/work-orders/formatters'
+import { useInspectionQueue } from '@/features/quality/api'
+import { DispositionDialog } from '@/features/quality/DispositionDialog'
 import { ApiError } from '@/shared/api/client'
+import { useAuth } from '@/shared/auth/AuthContext'
 import { StatusBadge } from '@/shared/ui/StatusBadge'
 import { useLot, useLotEvents } from './api'
 import { GenealogyView } from './GenealogyView'
+import { HoldLotDialog } from './HoldLotDialog'
+import { LotQualityTab } from './LotQualityTab'
 import { LotTimeline } from './LotTimeline'
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -21,6 +28,12 @@ export function LotDetailPage() {
   const { lotId } = useParams()
   const lot = useLot(lotId)
   const events = useLotEvents(lotId)
+  const { user } = useAuth()
+  const canAct = user?.role === 'QC' || user?.role === 'ADMIN'
+  // Queue membership already encodes WAIT, no inspection yet, and a spec for the operation.
+  const queue = useInspectionQueue()
+  const [holdOpen, setHoldOpen] = useState(false)
+  const [dispositionOpen, setDispositionOpen] = useState(false)
 
   if (lot.isError) {
     const notFound = lot.error instanceof ApiError && lot.error.status === 404
@@ -36,6 +49,7 @@ export function LotDetailPage() {
   if (!lot.data) return <p className="text-sm text-muted-foreground">Loading...</p>
 
   const l = lot.data
+  const inQueue = queue.data?.some((q) => q.lotId === l.lotId) ?? false
 
   return (
     <div className="space-y-6">
@@ -47,6 +61,21 @@ export function LotDetailPage() {
           <h1 className="font-mono text-2xl font-semibold">{l.lotId}</h1>
           <StatusBadge value={l.status} />
           <StatusBadge value={l.quality} />
+          {canAct && (
+            <div className="ml-auto flex gap-2">
+              {l.status === 'WAIT' && (
+                <Button variant="outline" onClick={() => setHoldOpen(true)}>
+                  Hold
+                </Button>
+              )}
+              {inQueue && (
+                <Button asChild>
+                  <Link to={`/quality/inspect/${l.lotId}`}>Inspect</Link>
+                </Button>
+              )}
+              {l.status === 'HOLD' && <Button onClick={() => setDispositionOpen(true)}>Disposition</Button>}
+            </div>
+          )}
         </div>
       </div>
 
@@ -86,6 +115,7 @@ export function LotDetailPage() {
       <Tabs defaultValue="history">
         <TabsList>
           <TabsTrigger value="history">History</TabsTrigger>
+          <TabsTrigger value="quality">Quality</TabsTrigger>
           <TabsTrigger value="genealogy">Genealogy</TabsTrigger>
         </TabsList>
         <TabsContent value="history">
@@ -97,10 +127,15 @@ export function LotDetailPage() {
             <p className="text-sm text-muted-foreground">Loading...</p>
           )}
         </TabsContent>
+        <TabsContent value="quality">
+          <LotQualityTab lotId={l.lotId} />
+        </TabsContent>
         <TabsContent value="genealogy">
           <GenealogyView lotId={l.lotId} />
         </TabsContent>
       </Tabs>
+      {canAct && <HoldLotDialog lot={l} open={holdOpen} onOpenChange={setHoldOpen} />}
+      {canAct && <DispositionDialog lot={l} open={dispositionOpen} onOpenChange={setDispositionOpen} />}
     </div>
   )
 }
