@@ -26,6 +26,7 @@ builder.Services.AddScoped<DemoSeeder>();
 builder.Services.AddIdentityModule();
 builder.Services.AddLotsModule();
 builder.Services.AddWorkOrdersModule();
+builder.Services.AddEquipmentModule();
 builder.Services.AddExecutionModule();
 builder.Services.AddQualityModule();
 

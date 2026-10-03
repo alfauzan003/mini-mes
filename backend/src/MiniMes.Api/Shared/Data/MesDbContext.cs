@@ -1,10 +1,32 @@
 using Microsoft.EntityFrameworkCore;
+using MiniMes.Api.Modules.Equipment.Domain;
 using MiniMes.Api.Shared.Results;
+using EquipmentEntity = MiniMes.Api.Modules.Equipment.Domain.Equipment;
 
 namespace MiniMes.Api.Shared.Data;
 
-public class MesDbContext(DbContextOptions<MesDbContext> options) : DbContext(options)
+public class MesDbContext(DbContextOptions<MesDbContext> options, TimeProvider time) : DbContext(options)
 {
+    public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        WriteEquipmentStatusLog();
+        return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    private void WriteEquipmentStatusLog()
+    {
+        var now = time.GetUtcNow();
+        foreach (var equipment in ChangeTracker.Entries<EquipmentEntity>().Select(e => e.Entity).ToList())
+        {
+            foreach (var change in equipment.PendingStatusChanges)
+            {
+                Set<EquipmentStatusLog>().Add(new EquipmentStatusLog(equipment.Id, change, now));
+            }
+
+            equipment.ClearPendingStatusChanges();
+        }
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder) =>
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(MesDbContext).Assembly);
 

@@ -8,6 +8,7 @@ public static class ErrorCodes
     public const string WoInvalidAssignment = "WO_INVALID_ASSIGNMENT";
     public const string InvalidDateRange = "INVALID_DATE_RANGE";
     public const string EquipmentNotAvailable = "EQUIPMENT_NOT_AVAILABLE";
+    public const string EquipmentInvalidTransition = "EQUIPMENT_INVALID_TRANSITION";
     public const string EquipmentNotAssigned = "EQUIPMENT_NOT_ASSIGNED";
     public const string LotNotAvailable = "LOT_NOT_AVAILABLE";
     public const string LotQualityPending = "LOT_QUALITY_PENDING";

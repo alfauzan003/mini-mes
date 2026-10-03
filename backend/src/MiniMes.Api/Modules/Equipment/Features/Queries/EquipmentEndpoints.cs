@@ -39,16 +39,21 @@ public static class EquipmentEndpoints
         app.MapGet("/api/equipment/{code}", async (
             string code, MesDbContext db, RunQueries runs, CancellationToken ct) =>
         {
-            var normalized = code.Trim().ToUpperInvariant();
-            var dto = (await ToDtosAsync(
-                db.Set<EquipmentEntity>().AsNoTracking().Where(e => e.Code == normalized), runs, ct))
-                .SingleOrDefault();
-
-            Result<EquipmentDto> result = dto is not null
-                ? dto
-                : new Error(ErrorCodes.EquipmentNotFound, $"Equipment '{code}' was not found.", ErrorKind.NotFound);
+            Result<EquipmentDto> result = await FindAsync(code, db, runs, ct)
+                ?? (Result<EquipmentDto>)NotFound(code);
             return result.ToHttpResult();
         }).RequireAuthorization();
+    }
+
+    public static Error NotFound(string code) =>
+        new(ErrorCodes.EquipmentNotFound, $"Equipment '{code}' was not found.", ErrorKind.NotFound);
+
+    public static async Task<EquipmentDto?> FindAsync(string code, MesDbContext db, RunQueries runs, CancellationToken ct)
+    {
+        var normalized = code.Trim().ToUpperInvariant();
+        return (await ToDtosAsync(
+            db.Set<EquipmentEntity>().AsNoTracking().Where(e => e.Code == normalized), runs, ct))
+            .SingleOrDefault();
     }
 
     private static async Task<List<EquipmentDto>> ToDtosAsync(
