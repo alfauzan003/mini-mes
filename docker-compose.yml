@@ -25,12 +25,22 @@ services:
     environment:
       ConnectionStrings__Mes: "${MES_CONNECTION_STRING:-Host=postgres;Port=5432;Database=mini_mes;Username=mes;Password=mes}"
       Jwt__Key: "${JWT_KEY:-demo-only-jwt-signing-key-change-me-0123456789}"
-      Machine__ApiKey: "${MACHINE_API_KEY:-demo-only-machine-key-change-me-0123}"
+      Machine__ApiKey: "${MACHINE_API_KEY:-demo-machine-key-0123456789}"
       Seed__DemoPassword: "${DEMO_PASSWORD:-demo-pass}"
       Demo__EnableQuickLogin: "true"
       Database__MigrateOnStartup: "true"
       Database__Seed: "true"
       Plant__TimeZone: "${PLANT_TIME_ZONE:-Asia/Jakarta}"
+
+  simulator:
+    build:
+      context: ./backend
+      dockerfile: src/MiniMes.Simulator/Dockerfile
+    depends_on:
+      - api
+    environment:
+      Simulator__HubUrl: "http://api:8080/hubs/machine"
+      Simulator__ApiKey: "${MACHINE_API_KEY:-demo-machine-key-0123456789}"
 
   frontend:
     build:
