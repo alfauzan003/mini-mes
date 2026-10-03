@@ -159,7 +159,7 @@ function AdminActions({ code, status }: { code: string; status: string }) {
           <DialogHeader>
             <DialogTitle>Simulate a critical fault on {code}?</DialogTitle>
             <DialogDescription>
-              The simulator will push the machine out of limits and raise a critical alarm.
+              The simulator will raise a critical alarm on this machine, which takes it DOWN until the alarm clears.
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2">

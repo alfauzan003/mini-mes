@@ -73,6 +73,13 @@ describe('EquipmentTile', () => {
     expect(screen.queryByText('Out of limits')).not.toBeInTheDocument()
   })
 
+  it.each(['IDLE', 'DOWN', 'MAINTENANCE'] as const)('does not flag out-of-limit readings while %s', (status) => {
+    renderTile({ equipment: { ...EQUIPMENT, status }, readings: [{ ...TEMP, value: 5 }] })
+
+    expect(screen.getByText('5 C')).not.toHaveClass('text-red-700')
+    expect(screen.queryByText('Out of limits')).not.toBeInTheDocument()
+  })
+
   it('shows DOWN status and alarm count', () => {
     renderTile({ equipment: { ...EQUIPMENT, status: 'DOWN' }, activeAlarmCount: 2 })
 

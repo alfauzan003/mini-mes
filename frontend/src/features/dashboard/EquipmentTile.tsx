@@ -50,7 +50,7 @@ export function EquipmentTile({ equipment, readings, activeAlarmCount }: Equipme
         )}
       </div>
       <div className="mt-2">
-        <LiveParameters readings={readings} />
+        <LiveParameters readings={readings} status={equipment.status} />
       </div>
       {activeAlarmCount > 0 && (
         <Badge variant="outline" className="mt-2 border-red-200 bg-red-100 text-red-800">

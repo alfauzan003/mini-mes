@@ -1,15 +1,16 @@
 import { TriangleAlert } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { LiveReadingDto } from '@/shared/api/types'
+import type { EquipmentStatus, LiveReadingDto } from '@/shared/api/types'
 import { isOutOfLimits } from '@/shared/realtime/readings'
 
-export function LiveParameters({ readings }: { readings: LiveReadingDto[] }) {
+/** Limits describe a running machine; a resting one legitimately sits at ambient/zero, so only RUNNING is judged. */
+export function LiveParameters({ readings, status }: { readings: LiveReadingDto[]; status: EquipmentStatus }) {
   if (readings.length === 0) return <p className="text-xs text-muted-foreground">No readings</p>
 
   return (
     <dl className="space-y-0.5 text-sm">
       {readings.map((r) => {
-        const out = isOutOfLimits(r)
+        const out = status === 'RUNNING' && isOutOfLimits(r)
         return (
           <div
             key={r.parameter}

@@ -132,7 +132,10 @@ export function StationPage() {
           <CardTitle className="text-lg">Live parameters</CardTitle>
         </CardHeader>
         <CardContent>
-          <LiveParameters readings={readings.data?.filter((r) => r.equipmentCode === eqp.code) ?? []} />
+          <LiveParameters
+            readings={readings.data?.filter((r) => r.equipmentCode === eqp.code) ?? []}
+            status={eqp.status}
+          />
         </CardContent>
       </Card>
 

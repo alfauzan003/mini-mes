@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { AlarmDto, AssignmentDto, EquipmentDto, RunDto } from '@/shared/api/types'
+import type { AlarmDto, AssignmentDto, EquipmentDto, LiveReadingDto, RunDto } from '@/shared/api/types'
 import { StationPage } from './StationPage'
 
 const assignments: AssignmentDto[] = [
@@ -35,6 +35,7 @@ const slitRun: RunDto = {
 }
 
 let status: EquipmentDto['status'] | null = null
+let latestReadings: LiveReadingDto[] = []
 
 function equipment(openRun: RunDto | null): EquipmentDto {
   return { code: 'MX01', name: 'Mixer 1', operation: 'MIX', laneCount: openRun?.operation === 'SLIT' ? 8 : null, status: status ?? (openRun ? 'RUNNING' : 'IDLE'), openRun }
@@ -80,7 +81,9 @@ function stubApi(initialRun: RunDto | null, postResponse?: () => Promise<Respons
           ? equipment(openRun)
           : url.startsWith('/api/alarms')
             ? alarms
-            : []
+            : url.startsWith('/api/readings')
+              ? latestReadings
+              : []
       return new Response(JSON.stringify(body), { status: 200 })
     }),
   )
@@ -104,6 +107,7 @@ describe('StationPage', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
     status = null
+    latestReadings = []
   })
 
   it('shows down banner and disables track-in when equipment is DOWN', async () => {
@@ -118,6 +122,21 @@ describe('StationPage', () => {
     await userEvent.click(await screen.findByRole('radio', { name: /WO-261003-001/ }))
     expect(screen.getByRole('button', { name: 'Track in' })).toBeDisabled()
     expect(screen.getByLabelText('Scan lot or carrier')).toBeDisabled()
+  })
+
+  it.each([
+    ['RUNNING', true],
+    ['IDLE', false],
+  ] as const)('with the machine %s, an out-of-limit reading is flagged: %s', async (machineStatus, flagged) => {
+    status = machineStatus
+    latestReadings = [
+      { equipmentCode: 'MX01', parameter: 'Vacuum', kind: 'PRESSURE', unit: 'kPa', value: 0, low: 5, high: 20, at: '2026-10-03T00:00:00Z' },
+    ]
+    stubApi(null)
+    renderStation()
+
+    expect(await screen.findByText('0 kPa')).toBeInTheDocument()
+    expect(screen.queryByText('Out of limits') !== null).toBe(flagged)
   })
 
   it('shows the maintenance banner and disables track-in', async () => {
