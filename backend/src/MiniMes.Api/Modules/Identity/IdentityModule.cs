@@ -36,7 +36,7 @@ public static class IdentityModule
 
         // Resolved lazily so test hosts can override Jwt settings after Program starts.
         services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
-            .Configure<IOptions<JwtOptions>>((bearer, jwt) =>
+            .Configure<IOptions<JwtOptions>, TimeProvider>((bearer, jwt, clock) =>
             {
                 bearer.MapInboundClaims = false;
                 bearer.TokenValidationParameters = new TokenValidationParameters
@@ -46,7 +46,15 @@ public static class IdentityModule
                     IssuerSigningKey = JwtTokenService.SigningKey(jwt.Value.Key),
                     NameClaimType = "name",
                     RoleClaimType = "role",
-                    ClockSkew = TimeSpan.FromMinutes(1)
+                    ClockSkew = TimeSpan.FromMinutes(1),
+                    // The issuer stamps expiry from this clock, so lifetime is checked against it too.
+                    LifetimeValidator = (notBefore, expires, _, parameters) =>
+                    {
+                        var now = clock.GetUtcNow().UtcDateTime;
+                        return expires is not null
+                            && expires.Value >= now - parameters.ClockSkew
+                            && (notBefore is null || notBefore.Value <= now + parameters.ClockSkew);
+                    }
                 };
                 bearer.Events = new JwtBearerEvents
                 {

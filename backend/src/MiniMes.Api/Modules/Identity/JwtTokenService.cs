@@ -14,11 +14,14 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options, TimeProvider c
 
     public IssuedToken Issue(User user)
     {
-        var expiresAt = clock.GetUtcNow().AddHours(_options.ExpiryHours);
+        var issuedAt = clock.GetUtcNow();
+        var expiresAt = issuedAt.AddHours(_options.ExpiryHours);
         var descriptor = new SecurityTokenDescriptor
         {
             Issuer = _options.Issuer,
             Audience = _options.Audience,
+            IssuedAt = issuedAt.UtcDateTime,
+            NotBefore = issuedAt.UtcDateTime,
             Expires = expiresAt.UtcDateTime,
             Subject = new ClaimsIdentity(
             [
