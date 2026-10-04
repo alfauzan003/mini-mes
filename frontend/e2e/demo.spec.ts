@@ -179,7 +179,7 @@ test('demo walkthrough', async ({ page, request }) => {
   await expect(main.getByText('RUNNING', { exact: true }).first()).toBeVisible()
   await expect.poll(() => parametersSettled(page), { timeout: 90_000 }).toBe(true)
   await snap(page, '03-operator-station.png')
-  // Readings are stored at most every 10 s; keep coating until the trend (step 10) has some inside the limits.
+  // Readings are stored at most every 10 s; keep coating until the trend (step 14) has some inside the limits.
   await expect
     .poll(() => storedReadingsInLimits(request, operator, 'CT01', coatStart), { timeout: 120_000, intervals: [2_000] })
     .toBeGreaterThanOrEqual(3)
